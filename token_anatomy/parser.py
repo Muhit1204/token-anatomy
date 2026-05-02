@@ -7,6 +7,21 @@ from collections import defaultdict
 from token_anatomy.config import CLAUDE_DIR, RATES
 
 
+def _extract_user_text(entry: dict) -> str:
+    if entry.get("type") != "user":
+        return ""
+    content = entry.get("message", {}).get("content") or entry.get("content", "")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        return " ".join(parts).strip()
+    return ""
+
+
 def compute_cost(it=0, ot=0, cr=0, cw=0):
     return (
         it * RATES["input"]       / 1_000_000 +
@@ -60,6 +75,7 @@ def parse_data():
                 "last_ts":      None,
                 "model":        None,
                 "cost":         0.0,
+                "user_texts":   [],
             }
 
             try:
@@ -75,6 +91,11 @@ def parse_data():
 
                         sess["messages"] += 1
                         entry_type = entry.get("type", "")
+
+                        # ── User text (for retrospective) ──
+                        user_text = _extract_user_text(entry)
+                        if user_text:
+                            sess["user_texts"].append(user_text)
 
                         # ── Timestamp ──
                         ts_raw = entry.get("timestamp") or entry.get("ts", "")
@@ -131,6 +152,7 @@ def parse_data():
                 sess["cache_read"], sess["cache_write"]
             )
             sess["tools"] = dict(sess["tools"])
+            sess["full_text"] = " ".join(sess.pop("user_texts"))[:8000]
 
             # ── Hourly heatmap ──
             if sess["first_ts"]:
@@ -214,6 +236,10 @@ def parse_data():
     # Hourly list (0-23)
     hourly_list = [hourly.get(h, 0) for h in range(24)]
 
+    # ── Retrospective ──
+    from token_anatomy.retrospective import compute_retrospective
+    retro = compute_retrospective(sessions_sorted, hourly_list)
+
     return {
         "total":         dict(total),
         "today":         today_d,
@@ -231,4 +257,5 @@ def parse_data():
         "rates":          RATES,
         "claude_dir":     str(CLAUDE_DIR),
         "generated_at":   datetime.now().isoformat(timespec="seconds"),
+        "retrospective":  retro,
     }

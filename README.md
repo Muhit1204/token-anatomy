@@ -13,7 +13,7 @@ Token Anatomy reads your Claude Code session files and shows you exactly where y
 No install needed. Run directly:
 
 ```bash
-git clone https://github.com/muntasir-hossain/token-anatomy.git
+git clone https://github.com/Muhit1204/token-anatomy.git
 cd token-anatomy
 python run.py
 ```
@@ -30,13 +30,21 @@ Then open [http://localhost:3456](http://localhost:3456). Dashboard opens automa
 |---|---|
 | **Today's Snapshot** | Sessions, messages, tokens in/out, cost today |
 | **All-Time Totals** | Total cost, cache hit rate, savings, lifetime token usage |
-| **Insights & Advisor** | 7 plain-English diagnoses — what you're doing wrong and how to fix it |
-| **Charts** | Daily cost, token volume, hourly heatmap, model usage, cache performance |
+| **Cost & Activity Trends** | Daily cost + token volume (last 30 days) |
+| **Usage Patterns** | Hourly heatmap, model usage, cache performance |
+| **Retrospective** | Topic clusters (where your work concentrates) + behavioral working styles |
+| **Tool Call Frequency** | Which tools Claude reaches for most |
+| **Insights & Advisor** | 7 plain-English diagnoses — what you're doing and how to improve |
 | **Per-Project Breakdown** | Which projects cost the most |
+| **Daily Breakdown** | Per-day token and cost history (last 60 days) |
 | **Chat Cost Browser** | Search, filter, sort every session — find your most expensive chats |
 | **Hover Tooltips** | Hover any number to see what it means in plain English |
 
 Auto-refreshes every 60 seconds. No page reload needed.
+
+### Navigation
+
+Sticky header with jump-nav pills — click any section name to jump directly to it. Active section highlights as you scroll. Back-to-top button appears at the bottom of the page.
 
 ---
 
@@ -56,7 +64,7 @@ Token Anatomy reads those files, calculates costs, and serves a dashboard at `lo
 ## Windows Users
 
 ```powershell
-git clone https://github.com/muntasir-hossain/token-anatomy.git
+git clone https://github.com/Muhit1204/token-anatomy.git
 cd token-anatomy
 python run.py
 ```

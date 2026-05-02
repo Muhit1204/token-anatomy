@@ -30,7 +30,44 @@
     padding: 16px 28px;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
+    position: sticky; top: 0; z-index: 50;
   }
+
+  /* ── Jump nav ── */
+  #jump-nav {
+    display: flex; gap: 4px; flex-wrap: nowrap;
+    overflow-x: auto; scrollbar-width: none;
+    opacity: 0; transition: opacity .35s ease;
+  }
+  #jump-nav.visible { opacity: 1; }
+  #jump-nav::-webkit-scrollbar { display: none; }
+  .nav-pill {
+    padding: 4px 12px; border-radius: 99px;
+    font-size: 13px; color: var(--muted);
+    text-decoration: none; white-space: nowrap;
+    transition: color .15s, background .15s;
+  }
+  .nav-pill:hover { color: var(--text); }
+  .nav-pill.active { background: rgba(217,119,6,.15); color: var(--accent); }
+  @media (max-width: 900px) {
+    #jump-nav { gap: 2px; }
+    .nav-pill { padding: 3px 8px; font-size: 12px; }
+  }
+
+  /* ── Section scroll offset ── */
+  [id^="sec-"] { scroll-margin-top: 57px; }
+
+  /* ── Back to top ── */
+  #top-btn {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    padding: 10px 22px; border-radius: 99px;
+    background: var(--accent); color: #000;
+    border: none; font-size: 14px; font-weight: 600; cursor: pointer;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s; z-index: 200;
+    white-space: nowrap;
+  }
+  #top-btn:hover { opacity: .85 !important; }
   header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: .03em; }
   header h1 span { color: var(--accent); }
   header h1 .sub { font-size: .7rem; font-weight: 400; color: var(--muted);
@@ -156,6 +193,32 @@
     z-index: 101; pointer-events: none;
   }
 
+  /* ── Retrospective ── */
+  .retro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .retro-grid { grid-template-columns: 1fr; } }
+  .cluster-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .cluster-label { width: 200px; font-size: 12px; color: var(--text);
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cluster-track { flex: 1; height: 10px; background: var(--border); border-radius: 99px; }
+  .cluster-fill  { height: 100%; border-radius: 99px;
+                   background: linear-gradient(90deg, var(--accent2), var(--blue)); }
+  .cluster-meta  { font-size: 11px; color: var(--muted); min-width: 80px; text-align: right; }
+  .cluster-keywords { font-size: 10px; color: var(--muted); padding-left: 210px;
+                      margin-top: -6px; margin-bottom: 8px; }
+  .style-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .style-cards { grid-template-columns: 1fr; } }
+  .style-card  { background: var(--bg); border: 1px solid var(--border);
+                 border-radius: var(--radius); padding: 14px 16px;
+                 display: flex; gap: 12px; align-items: flex-start; }
+  .style-icon  { font-size: 1.6rem; line-height: 1; flex-shrink: 0; }
+  .style-body  { flex: 1; }
+  .style-name  { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .style-desc  { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .style-ev    { font-size: 11px; color: var(--accent); margin-top: 5px; }
+  .style-bar   { height: 3px; background: var(--border); border-radius: 99px; margin-top: 8px; }
+  .style-bar-fill { height: 100%; border-radius: 99px;
+                    background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+
   /* ── Insights & Advisor ── */
   .insights-grid {
     display: flex; flex-direction: column;
@@ -194,6 +257,18 @@
 
 <header>
   <h1>⬡ Token <span>Anatomy</span><span class="sub">for Claude Code</span></h1>
+  <nav id="jump-nav">
+    <a href="#sec-snapshot" class="nav-pill">Snapshot</a>
+    <a href="#sec-totals"   class="nav-pill">Totals</a>
+    <a href="#sec-trends"   class="nav-pill">Trends</a>
+    <a href="#sec-patterns" class="nav-pill">Patterns</a>
+    <a href="#sec-retro"    class="nav-pill">Retro</a>
+    <a href="#sec-tools"    class="nav-pill">Tools</a>
+    <a href="#sec-insights" class="nav-pill">Insights</a>
+    <a href="#sec-projects" class="nav-pill">Projects</a>
+    <a href="#sec-daily"    class="nav-pill">Daily</a>
+    <a href="#sec-chats"    class="nav-pill">Chats</a>
+  </nav>
   <div style="display:flex;align-items:center;gap:14px">
     <span id="status">Loading…</span>
     <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
@@ -204,15 +279,15 @@
   <div id="error-box"></div>
 
   <!-- ── Today's Snapshot ── -->
-  <div class="section-title">Today's Snapshot</div>
+  <div class="section-title" id="sec-snapshot">Today's Snapshot</div>
   <div class="cards" id="today-cards"></div>
 
   <!-- ── All-Time Totals ── -->
-  <div class="section-title">All-Time Totals</div>
+  <div class="section-title" id="sec-totals">All-Time Totals</div>
   <div class="cards" id="total-cards"></div>
 
   <!-- ── Charts row 1 ── -->
-  <div class="section-title">Cost &amp; Activity Trends</div>
+  <div class="section-title" id="sec-trends">Cost &amp; Activity Trends</div>
   <div class="two-col">
     <div class="chart-panel">
       <h3>Daily Cost (last 30 days)</h3>
@@ -225,7 +300,7 @@
   </div>
 
   <!-- ── Charts row 2 ── -->
-  <div class="section-title">Usage Patterns</div>
+  <div class="section-title" id="sec-patterns">Usage Patterns</div>
   <div class="three-col">
     <div class="chart-panel">
       <h3>Hourly Activity Heatmap</h3>
@@ -241,16 +316,31 @@
     </div>
   </div>
 
+  <!-- ── Retrospective ── -->
+  <div class="section-title" id="sec-retro">Retrospective</div>
+  <div class="retro-grid">
+    <div class="chart-panel">
+      <h3>Topic Clusters</h3>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;">Where your conversations have clustered most — by session count.</p>
+      <div id="retro-clusters"><div style="color:var(--muted);font-size:12px">Loading…</div></div>
+    </div>
+    <div class="chart-panel">
+      <h3>Working Styles</h3>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;">Behavioral patterns identified from how you engage with Claude Code.</p>
+      <div class="style-cards" id="retro-styles"><div style="color:var(--muted);font-size:12px">Loading…</div></div>
+    </div>
+  </div>
+
   <!-- ── Tools ── -->
-  <div class="section-title">Tool Call Frequency</div>
+  <div class="section-title" id="sec-tools">Tool Call Frequency</div>
   <div class="chart-panel" id="tools-panel"></div>
 
   <!-- ── Insights & Advisor ── -->
-  <div class="section-title">Insights &amp; Advisor</div>
+  <div class="section-title" id="sec-insights">Insights &amp; Advisor</div>
   <div id="insights-panel"></div>
 
   <!-- ── Per-project breakdown ── -->
-  <div class="section-title">Per-Project Breakdown</div>
+  <div class="section-title" id="sec-projects">Per-Project Breakdown</div>
   <div class="table-panel">
     <h3>Projects (by cost)</h3>
     <table id="proj-table">
@@ -268,7 +358,7 @@
   </div>
 
   <!-- ── Daily table ── -->
-  <div class="section-title">Daily Breakdown</div>
+  <div class="section-title" id="sec-daily">Daily Breakdown</div>
   <div class="table-panel">
     <h3>Per-Day Stats</h3>
     <table id="daily-table">
@@ -287,7 +377,7 @@
   </div>
 
   <!-- ── Chat Cost Browser ── -->
-  <div class="section-title">Chat Cost Browser</div>
+  <div class="section-title" id="sec-chats">Chat Cost Browser</div>
   <div class="table-panel">
 
     <!-- toolbar -->
@@ -346,6 +436,8 @@
 
 <footer id="footer">Token Anatomy — Pure Python • Auto-refreshes every 60 s</footer>
 
+<button id="top-btn">↑ Back to top</button>
+
 <script>
 let charts = {};
 
@@ -386,6 +478,44 @@ function loadData() {
         'Updated ' + d.generated_at.substring(11,19);
     })
     .catch(e => { document.getElementById('status').textContent = 'Error: '+e; });
+}
+
+function renderRetrospective(retro) {
+  if (!retro) return;
+
+  const clusters = retro.topic_clusters || [];
+  const maxCount = clusters.length ? clusters[0].session_count : 1;
+  document.getElementById('retro-clusters').innerHTML = clusters.length
+    ? clusters.map(c => `
+        <div class="cluster-row">
+          <div class="cluster-label" title="${c.label}">${c.label}</div>
+          <div class="cluster-track">
+            <div class="cluster-fill" style="width:${(c.session_count/maxCount*100).toFixed(1)}%"></div>
+          </div>
+          <div class="cluster-meta">${c.session_count} sess · ${c.pct}%</div>
+        </div>
+        ${c.top_keywords.length
+          ? `<div class="cluster-keywords">${c.top_keywords.join(' · ')}</div>`
+          : ''}
+      `).join('')
+    : '<div style="color:var(--muted);font-size:12px">Not enough text data yet.</div>';
+
+  const styles = retro.working_styles || [];
+  document.getElementById('retro-styles').innerHTML = styles.length
+    ? styles.map(s => `
+        <div class="style-card">
+          <div class="style-icon">${s.icon}</div>
+          <div class="style-body">
+            <div class="style-name">${s.label}</div>
+            <div class="style-desc">${s.description}</div>
+            <div class="style-ev">${s.evidence}</div>
+            <div class="style-bar">
+              <div class="style-bar-fill" style="width:${s.score}%"></div>
+            </div>
+          </div>
+        </div>
+      `).join('')
+    : '<div style="color:var(--muted);font-size:12px">Not enough session data yet.</div>';
 }
 
 function generateInsights(d) {
@@ -571,6 +701,9 @@ function render(d) {
     stat_card('Cache Reads',     fmtM(t.cache_read||0),'tokens at reduced rate', 'purple',
       'Tokens served from Claude\'s memory cache instead of re-sent fresh. These cost 10× less than regular input — a high number here means good efficiency.'),
   ].join('');
+
+  // ── Retrospective ──
+  renderRetrospective(d.retrospective);
 
   // ── Insights & Advisor ──
   const insights = generateInsights(d);
@@ -884,6 +1017,31 @@ function render(d) {
 // Initial load + auto-refresh
 loadData();
 setInterval(loadData, 60_000);
+
+// ── Scroll-spy: highlight active nav pill ──
+const _sections = document.querySelectorAll('[id^="sec-"]');
+const _pills    = document.querySelectorAll('.nav-pill');
+const _spy = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      _pills.forEach(p => p.classList.toggle('active', p.getAttribute('href') === '#' + e.target.id));
+    }
+  });
+}, { rootMargin: '-40% 0px -55% 0px' });
+_sections.forEach(s => _spy.observe(s));
+
+// ── Nav fade-in on scroll + back to top near page bottom ──
+const _jumpNav = document.getElementById('jump-nav');
+const _topBtn  = document.getElementById('top-btn');
+window.addEventListener('scroll', () => {
+  // Nav: fade in once user starts scrolling
+  _jumpNav.classList.toggle('visible', scrollY > 40);
+  // Back-to-top: show only in bottom 30% of page
+  const atBottom = (window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 80;
+  _topBtn.style.opacity = atBottom ? '1' : '0';
+  _topBtn.style.pointerEvents = atBottom ? 'auto' : 'none';
+}, { passive: true });
+_topBtn.onclick = () => scrollTo({ top: 0, behavior: 'smooth' });
 </script>
 </body>
 </html>
