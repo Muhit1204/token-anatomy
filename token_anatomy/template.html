@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Anatomy</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:     #0f1117;
+    --panel:  #1a1d27;
+    --border: #2a2d3a;
+    --accent: #d97706;
+    --accent2:#7c3aed;
+    --green:  #10b981;
+    --red:    #ef4444;
+    --blue:   #3b82f6;
+    --text:   #e2e8f0;
+    --muted:  #94a3b8;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px; min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: .03em; }
+  header h1 span { color: var(--accent); }
+  header h1 .sub { font-size: .7rem; font-weight: 400; color: var(--muted);
+                   letter-spacing: .06em; text-transform: uppercase;
+                   margin-left: 8px; vertical-align: middle; }
+  #status { font-size: 12px; color: var(--muted); }
+  #refresh-btn {
+    background: var(--accent); color: #000; border: none;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 600; margin-left: 12px;
+  }
+  #refresh-btn:hover { opacity: .85; }
+
+  main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── Section titles ── */
+  .section-title {
+    font-size: .75rem; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    margin: 28px 0 12px;
+  }
+
+  /* ── Stat card grid ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+  }
+  .card .label { font-size: 11px; color: var(--muted); text-transform: uppercase;
+                 letter-spacing: .08em; margin-bottom: 8px; }
+  .card .value { font-size: 1.6rem; font-weight: 700; line-height: 1; }
+  .card .sub   { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .card.accent  { border-color: var(--accent);  }
+  .card.accent  .value { color: var(--accent);  }
+  .card.green   { border-color: var(--green);   }
+  .card.green   .value { color: var(--green);   }
+  .card.purple  { border-color: var(--accent2); }
+  .card.purple  .value { color: var(--accent2); }
+  .card.blue    { border-color: var(--blue);    }
+  .card.blue    .value { color: var(--blue);    }
+
+  /* ── Two-column layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) {
+    .two-col, .three-col { grid-template-columns: 1fr; }
+  }
+
+  /* ── Chart panels ── */
+  .chart-panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+  }
+  .chart-panel h3 { font-size: 12px; color: var(--muted); text-transform: uppercase;
+                    letter-spacing: .08em; margin-bottom: 14px; }
+  .chart-panel canvas { max-height: 220px; }
+
+  /* ── Table ── */
+  .table-panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .table-panel h3 {
+    font-size: 12px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .08em; padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .06em;
+    padding: 10px 14px; background: rgba(255,255,255,.03);
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 9px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.025); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 99px;
+    font-size: 11px; font-weight: 600;
+  }
+  .pill-orange { background: rgba(217,119,6,.2);  color: var(--accent); }
+  .pill-purple { background: rgba(124,58,237,.2); color: var(--accent2); }
+  .pill-green  { background: rgba(16,185,129,.2); color: var(--green); }
+  .pill-blue   { background: rgba(59,130,246,.2); color: var(--blue); }
+
+  /* ── Progress bar ── */
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .bar-label { width: 130px; font-size: 12px; color: var(--muted); text-align: right;
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 99px; }
+  .bar-fill  { height: 100%; border-radius: 99px; background: var(--accent); }
+  .bar-value { font-size: 12px; color: var(--text); min-width: 50px; text-align: right; }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center; font-size: 11px; color: var(--muted);
+    padding: 24px; border-top: 1px solid var(--border); margin-top: 32px;
+  }
+  #error-box {
+    display: none; background: rgba(239,68,68,.12); border: 1px solid var(--red);
+    border-radius: var(--radius); padding: 18px; margin: 24px 0; color: var(--red);
+  }
+
+  /* ── Tooltip ── */
+  .card { position: relative; }
+  .card[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    background: #1e2130; border: 1px solid var(--border);
+    color: var(--text); font-size: 12px; font-weight: 400;
+    line-height: 1.5; padding: 10px 14px; border-radius: 8px;
+    width: 230px; white-space: normal; text-align: left;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    z-index: 100; pointer-events: none;
+    text-transform: none; letter-spacing: 0;
+  }
+  .card[data-tip]:hover::before {
+    content: '';
+    position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+    border: 6px solid transparent; border-top-color: var(--border);
+    z-index: 101; pointer-events: none;
+  }
+
+  /* ── Insights & Advisor ── */
+  .insights-grid {
+    display: flex; flex-direction: column;
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .insight-card {
+    background: var(--panel); padding: 14px 18px 14px 20px;
+    border-left: 4px solid transparent;
+    display: grid; grid-template-columns: 18px 1fr;
+    gap: 0 12px; align-items: start;
+  }
+  .insight-card.good { border-left-color: var(--green); }
+  .insight-card.warn { border-left-color: var(--accent); }
+  .insight-card.bad  { border-left-color: var(--red); }
+  .insight-card.info { border-left-color: var(--blue); }
+  .insight-dot {
+    width: 10px; height: 10px; border-radius: 50%; margin-top: 4px;
+  }
+  .good .insight-dot { background: var(--green); }
+  .warn .insight-dot { background: var(--accent); }
+  .bad  .insight-dot { background: var(--red); }
+  .info .insight-dot { background: var(--blue); }
+  .insight-content { grid-column: 2; }
+  .insight-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; line-height: 1.3; }
+  .good .insight-title { color: var(--green); }
+  .warn .insight-title { color: var(--accent); }
+  .bad  .insight-title { color: var(--red); }
+  .info .insight-title { color: var(--blue); }
+  .insight-body { font-size: 12px; color: var(--text); line-height: 1.6; margin-bottom: 5px; }
+  .insight-tip  { font-size: 11px; color: var(--muted); font-style: italic; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ Token <span>Anatomy</span><span class="sub">for Claude Code</span></h1>
+  <div style="display:flex;align-items:center;gap:14px">
+    <span id="status">Loading…</span>
+    <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
+  </div>
+</header>
+
+<main>
+  <div id="error-box"></div>
+
+  <!-- ── Today's Snapshot ── -->
+  <div class="section-title">Today's Snapshot</div>
+  <div class="cards" id="today-cards"></div>
+
+  <!-- ── All-Time Totals ── -->
+  <div class="section-title">All-Time Totals</div>
+  <div class="cards" id="total-cards"></div>
+
+  <!-- ── Insights & Advisor ── -->
+  <div class="section-title">Insights &amp; Advisor</div>
+  <div id="insights-panel"></div>
+
+  <!-- ── Charts row 1 ── -->
+  <div class="section-title">Cost &amp; Activity Trends</div>
+  <div class="two-col">
+    <div class="chart-panel">
+      <h3>Daily Cost (last 30 days)</h3>
+      <canvas id="dailyCostChart"></canvas>
+    </div>
+    <div class="chart-panel">
+      <h3>Daily Token Volume (last 30 days)</h3>
+      <canvas id="dailyTokenChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Charts row 2 ── -->
+  <div class="section-title">Usage Patterns</div>
+  <div class="three-col">
+    <div class="chart-panel">
+      <h3>Hourly Activity Heatmap</h3>
+      <canvas id="hourlyChart"></canvas>
+    </div>
+    <div class="chart-panel">
+      <h3>Model Usage</h3>
+      <canvas id="modelChart"></canvas>
+    </div>
+    <div class="chart-panel">
+      <h3>Cache Performance</h3>
+      <canvas id="cacheChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Tools ── -->
+  <div class="section-title">Tool Call Frequency</div>
+  <div class="chart-panel" id="tools-panel"></div>
+
+  <!-- ── Per-project breakdown ── -->
+  <div class="section-title">Per-Project Breakdown</div>
+  <div class="table-panel">
+    <h3>Projects (by cost)</h3>
+    <table id="proj-table">
+      <thead><tr>
+        <th>Project</th>
+        <th class="num">Sessions</th>
+        <th class="num">Messages</th>
+        <th class="num">Input Tokens</th>
+        <th class="num">Output Tokens</th>
+        <th class="num">Cache Read</th>
+        <th class="num">Estimated Cost</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- ── Daily table ── -->
+  <div class="section-title">Daily Breakdown</div>
+  <div class="table-panel">
+    <h3>Per-Day Stats</h3>
+    <table id="daily-table">
+      <thead><tr>
+        <th>Date</th>
+        <th class="num">Sessions</th>
+        <th class="num">Messages</th>
+        <th class="num">Input</th>
+        <th class="num">Output</th>
+        <th class="num">Cache Read</th>
+        <th class="num">Cache Write</th>
+        <th class="num">Cost (USD)</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- ── Chat Cost Browser ── -->
+  <div class="section-title">Chat Cost Browser</div>
+  <div class="table-panel">
+
+    <!-- toolbar -->
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;
+                border-bottom:1px solid var(--border);flex-wrap:wrap;">
+      <input id="chat-search" type="text" placeholder="Search project or session ID…"
+        style="flex:1;min-width:180px;background:var(--bg);border:1px solid var(--border);
+               border-radius:6px;color:var(--text);padding:6px 10px;font-size:13px;outline:none;">
+      <select id="chat-proj-filter"
+        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+               color:var(--text);padding:6px 10px;font-size:13px;cursor:pointer;">
+        <option value="">All projects</option>
+      </select>
+      <select id="chat-model-filter"
+        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+               color:var(--text);padding:6px 10px;font-size:13px;cursor:pointer;">
+        <option value="">All models</option>
+      </select>
+      <span id="chat-count" style="font-size:12px;color:var(--muted);white-space:nowrap;margin-left:4px;"></span>
+    </div>
+
+    <!-- table -->
+    <div style="overflow-x:auto;">
+    <table id="chat-table" style="width:100%">
+      <thead>
+        <tr>
+          <th class="sortable" data-col="first_ts"    style="cursor:pointer;user-select:none;">Started ↕</th>
+          <th class="sortable" data-col="project"     style="cursor:pointer;user-select:none;">Project ↕</th>
+          <th class="sortable" data-col="model"       style="cursor:pointer;user-select:none;">Model ↕</th>
+          <th class="sortable num" data-col="messages" style="cursor:pointer;user-select:none;">Msgs ↕</th>
+          <th class="sortable num" data-col="input"   style="cursor:pointer;user-select:none;">Input ↕</th>
+          <th class="sortable num" data-col="output"  style="cursor:pointer;user-select:none;">Output ↕</th>
+          <th class="sortable num" data-col="cache_read" style="cursor:pointer;user-select:none;">Cache R ↕</th>
+          <th class="sortable num" data-col="cost"    style="cursor:pointer;user-select:none;">Cost ↕</th>
+          <th style="font-size:11px;color:var(--muted);text-align:right;padding-right:14px;">Session ID</th>
+        </tr>
+      </thead>
+      <tbody id="chat-tbody"></tbody>
+    </table>
+    </div>
+
+    <!-- pagination -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:10px 16px;border-top:1px solid var(--border);">
+      <button id="chat-prev" onclick="chatPage(-1)"
+        style="background:var(--border);color:var(--text);border:none;border-radius:6px;
+               padding:5px 14px;cursor:pointer;font-size:13px;">← Prev</button>
+      <span id="chat-page-info" style="font-size:12px;color:var(--muted);"></span>
+      <button id="chat-next" onclick="chatPage(1)"
+        style="background:var(--border);color:var(--text);border:none;border-radius:6px;
+               padding:5px 14px;cursor:pointer;font-size:13px;">Next →</button>
+    </div>
+  </div>
+
+</main>
+
+<footer id="footer">Token Anatomy — Pure Python • Auto-refreshes every 60 s</footer>
+
+<script>
+let charts = {};
+
+function fmt(n, dec=0)    { return (n||0).toLocaleString(undefined, {minimumFractionDigits:dec,maximumFractionDigits:dec}); }
+function fmtM(n)          { return n>=1e6 ? (n/1e6).toFixed(2)+'M' : n>=1000 ? (n/1000).toFixed(1)+'K' : fmt(n); }
+function fmtCost(n)       { return '$'+(n||0).toFixed(4); }
+function fmtDate(s)       { return s ? s.replace('T',' ').substring(0,16) : '—'; }
+function shortModel(s)    { return (s||'unknown').replace('claude-','').split('-20')[0]; }
+
+function pill(text, cls) {
+  return `<span class="pill pill-${cls}">${text}</span>`;
+}
+
+function stat_card(label, value, sub='', cls='', tip='') {
+  return `<div class="card ${cls}"${tip ? ` data-tip="${tip}"` : ''}>
+    <div class="label">${label}</div>
+    <div class="value">${value}</div>
+    ${sub ? `<div class="sub">${sub}</div>` : ''}
+  </div>`;
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function loadData() {
+  document.getElementById('status').textContent = 'Loading…';
+  fetch('/api/stats')
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        document.getElementById('error-box').style.display = 'block';
+        document.getElementById('error-box').textContent = '⚠ ' + d.error;
+        return;
+      }
+      render(d);
+      document.getElementById('status').textContent =
+        'Updated ' + d.generated_at.substring(11,19);
+    })
+    .catch(e => { document.getElementById('status').textContent = 'Error: '+e; });
+}
+
+function generateInsights(d) {
+  const t        = d.total    || {};
+  const sessions = d.sessions || [];
+  const models   = d.models   || {};
+  const tools    = d.tools    || [];
+  const hourly   = d.hourly   || Array(24).fill(0);
+  const insights = [];
+
+  // 1. Cache Hit Rate
+  const hitRate = d.cache_hit_rate || 0;
+  if (hitRate < 10) {
+    insights.push({ severity:'bad',
+      title: `Cache Hit Rate: ${hitRate}% — Critical`,
+      body:  'Almost no caching active. Full context re-sent every message at full input prices.',
+      tip:   'Start sessions with a 1,024+ token system prompt to trigger cache writes. Keep conversations going rather than starting fresh. Use /compact before switching topics.' });
+  } else if (hitRate < 40) {
+    insights.push({ severity:'warn',
+      title: `Cache Hit Rate: ${hitRate}% — Underused`,
+      body:  'Some caching, but most context re-sent as fresh input. Paying more than necessary.',
+      tip:   'Structure prompts so the same large prefix reuses across messages. Avoid rephrasing system instructions between turns.' });
+  } else if (hitRate < 70) {
+    insights.push({ severity:'info',
+      title: `Cache Hit Rate: ${hitRate}% — Decent`,
+      body:  'Caching is working. A meaningful share of input tokens served from cache at 10× lower cost.',
+      tip:   'Consolidate related work into fewer, longer sessions to push rate above 70%.' });
+  } else {
+    insights.push({ severity:'good',
+      title: `Cache Hit Rate: ${hitRate}% — Excellent`,
+      body:  `Great cache usage. Saving ${fmtCost(d.cache_savings||0)} vs no-cache baseline — cache reads cost 10× less than fresh input.`,
+      tip:   'Keep it up: long sessions, stable system prompts, minimal context reshuffling.' });
+  }
+
+  // 2. Model Selection
+  const totalModelSessions = Object.values(models).reduce((a,b)=>a+b, 0);
+  if (totalModelSessions > 0) {
+    const opusCount  = Object.entries(models).filter(([k])=>k.toLowerCase().includes('opus')).reduce((a,[,v])=>a+v, 0);
+    const haikuCount = Object.entries(models).filter(([k])=>k.toLowerCase().includes('haiku')).reduce((a,[,v])=>a+v, 0);
+    const opusPct    = Math.round(opusCount  / totalModelSessions * 100);
+    const haikuPct   = Math.round(haikuCount / totalModelSessions * 100);
+    if (opusPct > 20) {
+      insights.push({ severity:'warn',
+        title: `Model Mix: ${opusPct}% Opus`,
+        body:  `${opusCount} of ${totalModelSessions} sessions used Opus. Opus costs ~5× more than Sonnet per token.`,
+        tip:   'Reserve Opus for deep reasoning. Sonnet handles most coding tasks. Haiku covers simple reads, greps, and one-liners.' });
+    } else if (haikuPct < 5 && totalModelSessions >= 10) {
+      insights.push({ severity:'info',
+        title: 'Model Mix: Haiku Never Used',
+        body:  `None of your ${totalModelSessions} sessions used Haiku. Haiku is ~20× cheaper than Sonnet per token.`,
+        tip:   'Route simple tasks — file reads, grep searches, quick summaries — to Haiku.' });
+    } else {
+      insights.push({ severity:'good',
+        title: 'Model Mix: Balanced',
+        body:  `${opusPct}% Opus, ${haikuPct}% Haiku. Using the model tier ladder well.`,
+        tip:   'Continue matching task complexity to model tier for best cost efficiency.' });
+    }
+  }
+
+  // 3. Session Cost Outliers
+  if (sessions.length >= 3) {
+    const costs  = sessions.map(s=>s.cost||0).sort((a,b)=>a-b);
+    const mid    = Math.floor(costs.length/2);
+    const median = costs.length%2 ? costs[mid] : (costs[mid-1]+costs[mid])/2;
+    const maxCost = costs[costs.length-1];
+    const ratio   = median > 0 ? maxCost/median : 0;
+    if (ratio > 5) {
+      const worst = sessions.find(s=>(s.cost||0)===maxCost);
+      insights.push({ severity:'warn',
+        title: `Session Cost Outlier: ${fmtCost(maxCost)} (${Math.round(ratio)}× median)`,
+        body:  `Most expensive session ("${worst?worst.project:'unknown'}") cost ${fmtCost(maxCost)} — ${Math.round(ratio)}× your typical ${fmtCost(median)}. Long sessions accumulate context exponentially.`,
+        tip:   'Use /compact when a session runs long. Start fresh when switching topics — each message in a long thread re-sends full conversation as input.' });
+    } else {
+      insights.push({ severity:'good',
+        title: 'Session Costs: Consistent',
+        body:  `No runaway sessions. Most expensive is ${Math.round(ratio)}× median — within healthy range.`,
+        tip:   'Keep using /compact or fresh sessions when context grows large.' });
+    }
+  }
+
+  // 4. Output / Input Ratio
+  const effInput = (t.input||0) + (t.cache_read||0);
+  if (effInput > 0) {
+    const outRatio = (t.output||0) / effInput;
+    if (outRatio > 0.5) {
+      insights.push({ severity:'warn',
+        title: `High Output Ratio: ${(outRatio*100).toFixed(0)}% of input`,
+        body:  `Claude generating ${fmtM(t.output||0)} output vs ${fmtM(effInput)} effective input. Output costs 5× more per token than input.`,
+        tip:   'Ask for concise responses when detail isn\'t needed. Use /compact more often.' });
+    } else {
+      insights.push({ severity:'good',
+        title: `Output Ratio: ${(outRatio*100).toFixed(0)}% — Healthy`,
+        body:  'Output volume proportionate to input. Not paying excess for verbose responses.',
+        tip:   'Continue requesting focused, concise answers for routine tasks.' });
+    }
+  }
+
+  // 5. Cache Write vs Read Balance
+  const cw = t.cache_write||0, cr = t.cache_read||0;
+  if (cw === 0) {
+    insights.push({ severity:'bad',
+      title: 'No Cache Writes Detected',
+      body:  'Zero cache writes means prompts too short to trigger caching. Paying full input prices every turn.',
+      tip:   'Prompts must exceed ~1,024 tokens before Claude writes a cache entry. Start sessions with detailed project context.' });
+  } else if (cr < cw * 2) {
+    insights.push({ severity:'warn',
+      title: `Cache Written But Rarely Read (${cw>0?(cr/cw).toFixed(1):'0'}× ratio)`,
+      body:  `Writing ${fmtM(cw)} cache tokens but only reading ${fmtM(cr)} back. Cache writes cost more than regular input — need ~13× reads to break even.`,
+      tip:   'Continue conversations instead of starting new sessions after cache writes. New session throws away cache you just paid to create.' });
+  } else {
+    insights.push({ severity:'good',
+      title: `Cache Efficiency: ${(cr/cw).toFixed(1)}× Read/Write Ratio`,
+      body:  `Cache entries read back ${(cr/cw).toFixed(1)}× per write on average. Amortizing write cost effectively.`,
+      tip:   'Keep sessions long enough to read cache entries repeatedly before context shifts.' });
+  }
+
+  // 6. Tool Concentration
+  if (tools.length > 1) {
+    const totalCalls = tools.reduce((a,[,c])=>a+c, 0);
+    const topTool    = tools[0];
+    const topPct     = Math.round(topTool[1]/totalCalls*100);
+    if (topPct > 60) {
+      const isFileOp = ['read','grep','bash','glob'].some(n=>topTool[0].toLowerCase().includes(n));
+      insights.push({ severity:'info',
+        title: `Tool Concentration: "${topTool[0]}" is ${topPct}% of all calls`,
+        body:  `${fmt(topTool[1])} of ${fmt(totalCalls)} total calls use "${topTool[0]}". ${isFileOp?'Heavy file reading inflates context size, raising cache miss costs.':'Single dominant tool may indicate repetitive workflow patterns.'}`,
+        tip:   isFileOp ? 'Use /compact to trim file-read context. Read only sections needed rather than full files.' : `Review whether "${topTool[0]}" calls could be batched or made more targeted.` });
+    } else {
+      insights.push({ severity:'good',
+        title: `Tool Mix: Balanced (top tool ${topPct}%)`,
+        body:  `Calls spread across ${tools.length} tools. No single tool dominates conversation context.`,
+        tip:   'Diverse tool use means efficient, targeted queries rather than repeated broad reads.' });
+    }
+  }
+
+  // 7. Session Frequency (informational)
+  const peakHour  = hourly.indexOf(Math.max(...hourly));
+  const peakLabel = peakHour===0?'12am': peakHour<12?`${peakHour}am`: peakHour===12?'12pm':`${peakHour-12}pm`;
+  const activeDays  = Object.keys(d.daily||{}).length;
+  const activeHours = hourly.filter(v=>v>0).length;
+  insights.push({ severity:'info',
+    title: `Peak Activity: ${peakLabel} — ${t.sessions||0} sessions across ${activeDays} days`,
+    body:  `Most active at ${peakLabel}. Work spread across ${activeHours} hours of the day over ${activeDays} active days.`,
+    tip:   'Consistent daily usage correlates with better cache efficiency due to stable project context.' });
+
+  return insights;
+}
+
+function render(d) {
+  const t = d.total || {};
+  const td = d.today || {};
+
+  // ── Today cards ──
+  document.getElementById('today-cards').innerHTML = [
+    stat_card('Sessions Today',  td.sessions||0, '', 'blue',
+      'A session is one continuous conversation with Claude. Each time you open a new chat or restart Claude Code, a new session begins.'),
+    stat_card('Messages Today',  td.messages||0, '', '',
+      'Total number of back-and-forth exchanges with Claude today. Each time Claude responds, that counts as one message.'),
+    stat_card('Tokens In',       fmtM(td.input||0),   'input tokens today', '',
+      'Tokens are chunks of text (roughly 1 token ≈ 4 characters). "Input tokens" is everything Claude read today — your messages, files, and conversation history.'),
+    stat_card('Tokens Out',      fmtM(td.output||0),  'output tokens today', '',
+      'Everything Claude wrote back to you today. Output tokens cost 5× more than input tokens, so verbose responses are pricier.'),
+    stat_card("Today's Cost",    fmtCost(td.cost||0), 'estimated USD', 'accent',
+      'Estimated API cost for today based on token usage and current rates. This is what you would pay if using the Anthropic API directly.'),
+  ].join('');
+
+  // ── Total cards ──
+  document.getElementById('total-cards').innerHTML = [
+    stat_card('Total Sessions',  fmt(t.sessions||0),  '', 'blue',
+      'Total number of conversations with Claude across all time. Each session is one continuous chat.'),
+    stat_card('Total Messages',  fmt(t.messages||0), '', '',
+      'Total Claude responses across all sessions ever. Higher = more back-and-forth with Claude.'),
+    stat_card('Total Cost',      fmtCost(d.total_cost||0), 'estimated USD', 'accent',
+      'Estimated total API cost across all sessions ever, based on token usage × current rates.'),
+    stat_card('Cache Hit Rate',  (d.cache_hit_rate||0)+'%', 'of input tokens cached', 'green',
+      'How often Claude reused previously saved context instead of re-reading it fresh. Higher % = cheaper — cached tokens cost 10× less than fresh input tokens.'),
+    stat_card('Cache Savings',   fmtCost(d.cache_savings||0), 'vs no-cache baseline', 'green',
+      'How much money you saved because of caching. Calculated by comparing your actual cost vs what it would have cost if every token were priced as fresh input.'),
+    stat_card('Total Input',     fmtM(t.input||0),    'tokens', '',
+      'All text Claude has read from you — questions, code, files, conversation history — across every session.'),
+    stat_card('Total Output',    fmtM(t.output||0),   'tokens', '',
+      'All text Claude has written back to you across every session. Output is billed at a higher rate than input.'),
+    stat_card('Cache Reads',     fmtM(t.cache_read||0),'tokens at reduced rate', 'purple',
+      'Tokens served from Claude\'s memory cache instead of re-sent fresh. These cost 10× less than regular input — a high number here means good efficiency.'),
+  ].join('');
+
+  // ── Insights & Advisor ──
+  const insights = generateInsights(d);
+  document.getElementById('insights-panel').innerHTML =
+    insights.length
+    ? `<div class="insights-grid">${insights.map(ins=>`
+        <div class="insight-card ${ins.severity}">
+          <div class="insight-dot"></div>
+          <div class="insight-content">
+            <div class="insight-title">${ins.title}</div>
+            <div class="insight-body">${ins.body}</div>
+            <div class="insight-tip">Tip: ${ins.tip}</div>
+          </div>
+        </div>`).join('')}</div>`
+    : '<div style="color:var(--muted);font-size:13px;padding:12px 0">No data yet.</div>';
+
+  // ── Daily Cost Chart ──
+  const days30 = Object.entries(d.daily||{}).slice(0,30).reverse();
+  destroyChart('dailyCostChart');
+  charts.dailyCostChart = new Chart(document.getElementById('dailyCostChart'), {
+    type: 'bar',
+    data: {
+      labels: days30.map(([k])=>k.substring(5)),
+      datasets: [{
+        label: 'Cost USD',
+        data: days30.map(([,v])=>(v.cost||0).toFixed(4)),
+        backgroundColor: 'rgba(217,119,6,0.7)',
+        borderColor: '#d97706', borderWidth: 1, borderRadius: 3
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'}},
+        y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'},
+           beginAtZero:true}
+      }
+    }
+  });
+
+  // ── Daily Token Chart ──
+  destroyChart('dailyTokenChart');
+  charts.dailyTokenChart = new Chart(document.getElementById('dailyTokenChart'), {
+    type: 'bar',
+    data: {
+      labels: days30.map(([k])=>k.substring(5)),
+      datasets: [
+        {label:'Input',  data:days30.map(([,v])=>v.input||0),
+         backgroundColor:'rgba(59,130,246,0.7)'},
+        {label:'Output', data:days30.map(([,v])=>v.output||0),
+         backgroundColor:'rgba(124,58,237,0.7)'},
+        {label:'Cache R',data:days30.map(([,v])=>v.cache_read||0),
+         backgroundColor:'rgba(16,185,129,0.5)'},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+      scales:{
+        x:{stacked:true,ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'}},
+        y:{stacked:true,ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'},
+           beginAtZero:true}
+      }
+    }
+  });
+
+  // ── Hourly heatmap ──
+  destroyChart('hourlyChart');
+  charts.hourlyChart = new Chart(document.getElementById('hourlyChart'), {
+    type: 'bar',
+    data: {
+      labels: Array.from({length:24},(_,i)=> i===0?'12am': i<12?i+'am': i===12?'12pm':(i-12)+'pm'),
+      datasets: [{
+        label: 'Sessions',
+        data: d.hourly||[],
+        backgroundColor: (d.hourly||[]).map(v => {
+          const max = Math.max(...(d.hourly||[1]));
+          const alpha = max>0 ? 0.2 + (v/max)*0.75 : 0.2;
+          return `rgba(124,58,237,${alpha.toFixed(2)})`;
+        }),
+        borderRadius: 3
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#94a3b8',font:{size:9}},grid:{color:'#2a2d3a'}},
+        y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'},
+           beginAtZero:true,title:{display:true,text:'sessions',color:'#94a3b8',font:{size:10}}}
+      }
+    }
+  });
+
+  // ── Model donut ──
+  const mods = Object.entries(d.models||{});
+  destroyChart('modelChart');
+  charts.modelChart = new Chart(document.getElementById('modelChart'), {
+    type: 'doughnut',
+    data: {
+      labels: mods.map(([k])=>k.replace('claude-','')),
+      datasets:[{
+        data: mods.map(([,v])=>v),
+        backgroundColor:['#d97706','#7c3aed','#3b82f6','#10b981','#ef4444','#f59e0b'],
+        borderWidth: 2, borderColor: '#1a1d27'
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{
+        legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.parsed} sessions`}}
+      }
+    }
+  });
+
+  // ── Cache donut ──
+  const cacheRead  = t.cache_read  || 0;
+  const cacheWrite = t.cache_write || 0;
+  const freshIn    = t.input       || 0;
+  destroyChart('cacheChart');
+  charts.cacheChart = new Chart(document.getElementById('cacheChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Cache Reads','Cache Writes','Fresh Input'],
+      datasets:[{
+        data:[cacheRead, cacheWrite, freshIn],
+        backgroundColor:['#10b981','#3b82f6','#d97706'],
+        borderWidth:2, borderColor:'#1a1d27'
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{
+        legend:{labels:{color:'#94a3b8',font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtM(ctx.parsed)}`}}
+      }
+    }
+  });
+
+  // ── Tool bars ──
+  const toolList = d.tools || [];
+  const maxTool  = toolList.length ? toolList[0][1] : 1;
+  document.getElementById('tools-panel').innerHTML =
+    '<h3>Tool Calls (all sessions)</h3>' +
+    (toolList.length
+      ? toolList.map(([name, cnt]) =>
+          `<div class="bar-row">
+            <div class="bar-label">${name}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(cnt/maxTool*100).toFixed(1)}%"></div></div>
+            <div class="bar-value">${fmt(cnt)}</div>
+          </div>`).join('')
+      : '<div style="color:var(--muted);padding:8px 0">No tool calls recorded yet.</div>'
+    );
+
+  // ── Projects table ──
+  const projBody = document.querySelector('#proj-table tbody');
+  projBody.innerHTML = (d.projects||[]).map(([name, ps]) => {
+    const cacheRate = (ps.input + ps.cache_read) > 0
+      ? (ps.cache_read/(ps.input+ps.cache_read)*100).toFixed(0)+'%' : '—';
+    return `<tr>
+      <td>${name}</td>
+      <td class="num">${fmt(ps.sessions||0)}</td>
+      <td class="num">${fmt(ps.messages||0)}</td>
+      <td class="num">${fmtM(ps.input||0)}</td>
+      <td class="num">${fmtM(ps.output||0)}</td>
+      <td class="num">${pill(fmtM(ps.cache_read||0)+' ('+cacheRate+')', 'green')}</td>
+      <td class="num">${pill(fmtCost(ps.cost||0), 'orange')}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:var(--muted);text-align:center">No data</td></tr>';
+
+  // ── Daily table ──
+  const dailyBody = document.querySelector('#daily-table tbody');
+  dailyBody.innerHTML = Object.entries(d.daily||{}).slice(0,60).map(([day, ds]) =>
+    `<tr>
+      <td>${day}</td>
+      <td class="num">${ds.sessions||0}</td>
+      <td class="num">${fmt(ds.messages||0)}</td>
+      <td class="num">${fmtM(ds.input||0)}</td>
+      <td class="num">${fmtM(ds.output||0)}</td>
+      <td class="num">${fmtM(ds.cache_read||0)}</td>
+      <td class="num">${fmtM(ds.cache_write||0)}</td>
+      <td class="num">${pill(fmtCost(ds.cost||0),'orange')}</td>
+    </tr>`).join('') || '<tr><td colspan="8" style="color:var(--muted);text-align:center">No data</td></tr>';
+
+  // ── Chat Browser state ──
+  let allChats = [], filteredChats = [];
+  let chatPage_ = 1;
+  const PAGE_SIZE = 25;
+  let sortCol = 'cost', sortDir = -1;   // default: cost desc
+
+  function initChatBrowser(sessions) {
+    allChats = sessions || [];
+
+    // Populate project filter
+    const projSel = document.getElementById('chat-proj-filter');
+    const projects = [...new Set(allChats.map(s => s.project))].sort();
+    projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p; opt.textContent = p;
+      projSel.appendChild(opt);
+    });
+
+    // Populate model filter
+    const modSel = document.getElementById('chat-model-filter');
+    const mods = [...new Set(allChats.map(s => shortModel(s.model)).filter(Boolean))].sort();
+    mods.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      modSel.appendChild(opt);
+    });
+
+    // Wire events
+    document.getElementById('chat-search').addEventListener('input', () => { chatPage_ = 1; renderChatTable(); });
+    projSel.addEventListener('change',  () => { chatPage_ = 1; renderChatTable(); });
+    modSel.addEventListener('change',   () => { chatPage_ = 1; renderChatTable(); });
+
+    // Sortable headers
+    document.querySelectorAll('#chat-table th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.col;
+        if (sortCol === col) { sortDir *= -1; }
+        else { sortCol = col; sortDir = -1; }
+        chatPage_ = 1;
+        renderChatTable();
+      });
+    });
+
+    renderChatTable();
+  }
+
+  function renderChatTable() {
+    const q     = (document.getElementById('chat-search').value || '').toLowerCase();
+    const proj  = document.getElementById('chat-proj-filter').value;
+    const model = document.getElementById('chat-model-filter').value;
+
+    filteredChats = allChats.filter(s => {
+      if (proj  && s.project !== proj)                return false;
+      if (model && shortModel(s.model) !== model)     return false;
+      if (q && !s.project.toLowerCase().includes(q)
+            && !(s.id||'').toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    // Sort
+    filteredChats.sort((a, b) => {
+      let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      return av < bv ? -sortDir : av > bv ? sortDir : 0;
+    });
+
+    // Update sort arrows on headers
+    document.querySelectorAll('#chat-table th.sortable').forEach(th => {
+      const col = th.dataset.col;
+      const base = th.textContent.replace(/ [↑↓↕]$/, '');
+      th.textContent = base + (col === sortCol ? (sortDir === -1 ? ' ↓' : ' ↑') : ' ↕');
+    });
+
+    const total   = filteredChats.length;
+    const pages   = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    chatPage_     = Math.min(chatPage_, pages);
+    const start   = (chatPage_ - 1) * PAGE_SIZE;
+    const slice   = filteredChats.slice(start, start + PAGE_SIZE);
+
+    document.getElementById('chat-count').textContent = `${total} chat${total !== 1 ? 's' : ''}`;
+    document.getElementById('chat-page-info').textContent =
+      `Page ${chatPage_} of ${pages}`;
+    document.getElementById('chat-prev').disabled = chatPage_ <= 1;
+    document.getElementById('chat-next').disabled = chatPage_ >= pages;
+
+    const tbody = document.getElementById('chat-tbody');
+    if (!slice.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:20px">No chats match your filters.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = slice.map(s => {
+      const modelCls = (s.model||'').includes('opus')  ? 'red'
+                     : (s.model||'').includes('haiku') ? 'green' : 'purple';
+      const cacheRate = (s.input + s.cache_read) > 0
+        ? ((s.cache_read / (s.input + s.cache_read)) * 100).toFixed(0) + '%' : '—';
+      return `<tr>
+        <td style="font-size:12px;color:var(--muted);white-space:nowrap">${fmtDate(s.first_ts)}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            title="${s.project}">${s.project}</td>
+        <td>${pill(shortModel(s.model), modelCls)}</td>
+        <td class="num">${s.messages}</td>
+        <td class="num">${fmtM(s.input||0)}</td>
+        <td class="num">${fmtM(s.output||0)}</td>
+        <td class="num" style="color:var(--green);font-size:12px">${fmtM(s.cache_read||0)}<span style="color:var(--muted);margin-left:3px">(${cacheRate})</span></td>
+        <td class="num">${pill(fmtCost(s.cost||0),'orange')}</td>
+        <td style="font-family:monospace;font-size:10px;color:var(--muted);text-align:right;padding-right:14px">${s.id}…</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function chatPage(delta) {
+    chatPage_ += delta;
+    renderChatTable();
+  }
+
+  document.getElementById('footer').textContent =
+    `Token Anatomy — Pure Python • ${d.claude_dir} • Auto-refreshes every 60 s`;
+
+  // Init chat browser once per load (re-init on refresh clears filters)
+  initChatBrowser(d.sessions || []);
+}
+
+// Initial load + auto-refresh
+loadData();
+setInterval(loadData, 60_000);
+</script>
+</body>
+</html>
