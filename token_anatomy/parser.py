@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import date, datetime
 from collections import defaultdict
 
-from token_anatomy.config import CLAUDE_DIR, RATES
+from token_anatomy.config import CLAUDE_DIR, RATES, get_rates
 
 
 def _extract_user_text(entry: dict) -> str:
@@ -22,12 +22,13 @@ def _extract_user_text(entry: dict) -> str:
     return ""
 
 
-def compute_cost(it=0, ot=0, cr=0, cw=0):
+def compute_cost(it=0, ot=0, cr=0, cw=0, model=""):
+    r = get_rates(model)
     return (
-        it * RATES["input"]       / 1_000_000 +
-        ot * RATES["output"]      / 1_000_000 +
-        cr * RATES["cache_read"]  / 1_000_000 +
-        cw * RATES["cache_write"] / 1_000_000
+        it * r["input"]       / 1_000_000 +
+        ot * r["output"]      / 1_000_000 +
+        cr * r["cache_read"]  / 1_000_000 +
+        cw * r["cache_write"] / 1_000_000
     )
 
 def parse_data():
@@ -149,7 +150,8 @@ def parse_data():
             # ── Session-level derived values ──
             sess["cost"] = compute_cost(
                 sess["input"], sess["output"],
-                sess["cache_read"], sess["cache_write"]
+                sess["cache_read"], sess["cache_write"],
+                model=sess["model"] or "",
             )
             sess["tools"] = dict(sess["tools"])
             sess["full_text"] = " ".join(sess.pop("user_texts"))[:8000]
@@ -170,11 +172,17 @@ def parse_data():
             ps["cache_write"] += sess["cache_write"]
             ps["sessions"]    += 1
             ps["messages"]    += sess["messages"]
+            ps["cost"]        += sess["cost"]
 
             # ── Model accumulation ──
             if sess["model"]:
                 short = sess["model"].split("-20")[0]   # strip date suffix
                 models[short] += 1
+
+            # ── Daily cost accumulation (sum session costs for accuracy) ──
+            if sess["first_ts"]:
+                day_key = str(sess["first_ts"])[:10]
+                daily[day_key]["cost"] += sess["cost"]
 
             # ── Global totals ──
             total["input"]       += sess["input"]
@@ -183,22 +191,16 @@ def parse_data():
             total["cache_write"] += sess["cache_write"]
             total["messages"]    += sess["messages"]
             total["sessions"]    += 1
+            total["cost"]        += sess["cost"]
 
             sessions.append(sess)
 
-    # ── Compute daily costs & session counts ──
+    # ── Daily session counts (costs already accumulated per-session) ──
     for day_key, ds in daily.items():
-        ds["cost"] = compute_cost(ds["input"], ds["output"],
-                                  ds["cache_read"], ds["cache_write"])
         ds["sessions"] = sum(
             1 for s in sessions
             if s["first_ts"] and str(s["first_ts"])[:10] == day_key
         )
-
-    # ── Per-project costs ──
-    for pl, ps in projects_stats.items():
-        ps["cost"] = compute_cost(ps["input"], ps["output"],
-                                  ps["cache_read"], ps["cache_write"])
 
     # ── Today's stats ──
     today_key = date.today().isoformat()
@@ -212,12 +214,11 @@ def parse_data():
     cache_hit_rate = round(total["cache_read"] / denominator * 100, 1) if denominator else 0.0
 
     # ── Cache savings ──
-    # What input cost would have been WITHOUT cache reads (charged at full input rate)
+    # Hypothetical cost if cache reads were charged at full input rate (use fallback RATES)
     no_cache_cost = compute_cost(
         total["input"] + total["cache_read"], total["output"], 0, 0
     )
-    actual_cost   = compute_cost(total["input"], total["output"],
-                                 total["cache_read"], total["cache_write"])
+    actual_cost   = total["cost"]
     cache_savings = max(0.0, no_cache_cost - actual_cost)
 
     # ── Sort: daily descending, sessions by cost desc ──
@@ -251,9 +252,7 @@ def parse_data():
         "hourly":        hourly_list,
         "cache_hit_rate": cache_hit_rate,
         "cache_savings":  round(cache_savings, 4),
-        "total_cost":     round(compute_cost(
-                              total["input"], total["output"],
-                              total["cache_read"], total["cache_write"]), 4),
+        "total_cost":     round(total["cost"], 4),
         "rates":          RATES,
         "claude_dir":     str(CLAUDE_DIR),
         "generated_at":   datetime.now().isoformat(timespec="seconds"),

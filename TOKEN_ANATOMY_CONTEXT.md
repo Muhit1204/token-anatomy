@@ -305,6 +305,15 @@ Full interactive browser over all sessions — no cap.
   - `retrospective` key added to `/api/stats` response
 - **Rule established:** always update `TOKEN_ANATOMY_CONTEXT.md` after every change
 
+### Session 6 — 2026-05-02
+- **Model-aware pricing** implemented
+  - `config.py`: added `MODEL_RATES` dict (10 model families, Claude 3.x + 4.x) + `get_rates(model_str)` helper that strips date suffix and falls back to global `RATES` for unknown models
+  - `parser.py`: `compute_cost()` gains `model=""` param, uses `get_rates()` per call; per-session cost now uses correct model rates; daily/project costs accumulated by summing session costs (not recomputing from aggregated tokens); `total["cost"]` accumulated inline
+  - Opus sessions now correctly priced at $15/$75 per 1M (was $3/$15); Haiku at $0.80/$4.00
+- **Test suite added** (`tests/test_pricing.py`, `tests/__init__.py`)
+  - 17 tests covering `get_rates()` and `compute_cost()` — all passing
+  - Run: `python -m pytest tests/ -v`
+
 ### Session 5 — 2026-05-02
 - **Dashboard navigation** added to `template.html` (no other files changed)
   - `header` made sticky (`position: sticky; top: 0; z-index: 50`)
