@@ -2,7 +2,9 @@
 
 > Local analytics dashboard for Claude Code — pure Python, zero dependencies, zero installs.
 
-Token Anatomy reads your Claude Code session files and shows you exactly where your tokens and money are going — with plain-English explanations so anyone can understand it.
+Token Anatomy reads your Claude Code session files and shows you exactly where your tokens and money are going.
+
+![Token Anatomy Dashboard](token-anatomy-demo.png)
 
 ---
 
@@ -90,20 +92,6 @@ RATE_INPUT=5.0 RATE_OUTPUT=25.0 RATE_CACHE_READ=0.5 RATE_CACHE_WRITE=6.25 python
 | `RATE_OUTPUT` | `15.0` | Output token price (USD per 1M tokens) |
 | `RATE_CACHE_READ` | `0.30` | Cache read price (USD per 1M tokens) |
 | `RATE_CACHE_WRITE` | `3.75` | Cache write price (USD per 1M tokens) |
-
----
-
-## Project Structure
-
-```
-token-anatomy/
-├── run.py                  ← entry point
-└── token_anatomy/
-    ├── config.py           ← env vars + rates
-    ├── parser.py           ← reads JSONL, calculates cost
-    ├── server.py           ← local HTTP server
-    └── template.html       ← full dashboard UI
-```
 
 ---
 
