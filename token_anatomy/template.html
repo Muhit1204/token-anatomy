@@ -26,11 +26,14 @@
     font-size: 14px; min-height: 100vh;
   }
   header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 28px;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
     position: sticky; top: 0; z-index: 50;
+  }
+  .header-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px clamp(20px, 4vw, 60px);
+    max-width: 1600px; margin: 0 auto;
   }
 
   /* ── Jump nav ── */
@@ -81,7 +84,7 @@
   }
   #refresh-btn:hover { opacity: .85; }
 
-  main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+  main { padding: 24px clamp(20px, 4vw, 60px); max-width: 1600px; margin: 0 auto; }
 
   /* ── Section titles ── */
   .section-title {
@@ -114,6 +117,22 @@
   .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
   @media (max-width: 900px) {
     .two-col, .three-col { grid-template-columns: 1fr; }
+  }
+
+  /* ── Side-by-side section row ── */
+  .side-row { display: grid; gap: 16px; align-items: start; }
+  .side-row-insights-projects { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 900px) {
+    .side-row-insights-projects { grid-template-columns: 1fr; }
+  }
+
+  /* ── Unified cards sub-label (spans all auto-fill columns) ── */
+  .section-sub-title {
+    font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    margin: 16px 0 8px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+    grid-column: 1 / -1;
   }
 
   /* ── Chart panels ── */
@@ -256,35 +275,33 @@
 <body>
 
 <header>
-  <h1>⬡ Token <span>Anatomy</span><span class="sub">for Claude Code</span></h1>
-  <nav id="jump-nav">
-    <a href="#sec-snapshot" class="nav-pill">Snapshot</a>
-    <a href="#sec-totals"   class="nav-pill">Totals</a>
-    <a href="#sec-trends"   class="nav-pill">Trends</a>
-    <a href="#sec-patterns" class="nav-pill">Patterns</a>
-    <a href="#sec-retro"    class="nav-pill">Retro</a>
-    <a href="#sec-tools"    class="nav-pill">Tools</a>
-    <a href="#sec-insights" class="nav-pill">Insights</a>
-    <a href="#sec-projects" class="nav-pill">Projects</a>
-    <a href="#sec-daily"    class="nav-pill">Daily</a>
-    <a href="#sec-chats"    class="nav-pill">Chats</a>
-  </nav>
-  <div style="display:flex;align-items:center;gap:14px">
-    <span id="status">Loading…</span>
-    <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
+  <div class="header-inner">
+    <h1>⬡ Token <span>Anatomy</span><span class="sub">for Claude Code</span></h1>
+    <nav id="jump-nav">
+      <a href="#sec-snapshot" class="nav-pill">Overview</a>
+      <a href="#sec-totals"   class="nav-pill">Totals</a>
+      <a href="#sec-trends"   class="nav-pill">Trends</a>
+      <a href="#sec-patterns" class="nav-pill">Patterns</a>
+      <a href="#sec-retro"    class="nav-pill">Retro</a>
+      <a href="#sec-tools"    class="nav-pill">Tools</a>
+      <a href="#sec-insights" class="nav-pill">Insights</a>
+      <a href="#sec-projects" class="nav-pill">Projects</a>
+      <a href="#sec-daily"    class="nav-pill">Daily</a>
+      <a href="#sec-chats"    class="nav-pill">Chats</a>
+    </nav>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span id="status">Loading…</span>
+      <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
+    </div>
   </div>
 </header>
 
 <main>
   <div id="error-box"></div>
 
-  <!-- ── Today's Snapshot ── -->
-  <div class="section-title" id="sec-snapshot">Today's Snapshot</div>
+  <!-- ── Usage Overview (Today + All-Time) ── -->
+  <div class="section-title" id="sec-snapshot">Usage Overview</div>
   <div class="cards" id="today-cards"></div>
-
-  <!-- ── All-Time Totals ── -->
-  <div class="section-title" id="sec-totals">All-Time Totals</div>
-  <div class="cards" id="total-cards"></div>
 
   <!-- ── Charts row 1 ── -->
   <div class="section-title" id="sec-trends">Cost &amp; Activity Trends</div>
@@ -316,7 +333,7 @@
     </div>
   </div>
 
-  <!-- ── Retrospective ── -->
+  <!-- ── Retrospective (full width) ── -->
   <div class="section-title" id="sec-retro">Retrospective</div>
   <div class="retro-grid">
     <div class="chart-panel">
@@ -331,30 +348,32 @@
     </div>
   </div>
 
-  <!-- ── Tools ── -->
-  <div class="section-title" id="sec-tools">Tool Call Frequency</div>
-  <div class="chart-panel" id="tools-panel"></div>
-
-  <!-- ── Insights & Advisor ── -->
-  <div class="section-title" id="sec-insights">Insights &amp; Advisor</div>
-  <div id="insights-panel"></div>
-
-  <!-- ── Per-project breakdown ── -->
-  <div class="section-title" id="sec-projects">Per-Project Breakdown</div>
-  <div class="table-panel">
-    <h3>Projects (by cost)</h3>
-    <table id="proj-table">
-      <thead><tr>
-        <th>Project</th>
-        <th class="num">Sessions</th>
-        <th class="num">Messages</th>
-        <th class="num">Input Tokens</th>
-        <th class="num">Output Tokens</th>
-        <th class="num">Cache Read</th>
-        <th class="num">Estimated Cost</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
+  <!-- ── Insights | Projects + Tools (side by side) ── -->
+  <div class="side-row side-row-insights-projects">
+    <div>
+      <div class="section-title" id="sec-insights">Insights &amp; Advisor</div>
+      <div id="insights-panel"></div>
+    </div>
+    <div>
+      <div class="section-title" id="sec-projects">Per-Project Breakdown</div>
+      <div class="table-panel">
+        <h3>Projects (by cost)</h3>
+        <table id="proj-table">
+          <thead><tr>
+            <th>Project</th>
+            <th class="num">Sessions</th>
+            <th class="num">Messages</th>
+            <th class="num">Input Tokens</th>
+            <th class="num">Output Tokens</th>
+            <th class="num">Cache Read</th>
+            <th class="num">Estimated Cost</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="section-title" id="sec-tools">Tool Call Frequency</div>
+      <div class="chart-panel" id="tools-panel"></div>
+    </div>
   </div>
 
   <!-- ── Daily table ── -->
@@ -682,25 +701,27 @@ function render(d) {
       'Estimated API cost for today based on token usage and current rates. This is what you would pay if using the Anthropic API directly.'),
   ].join('');
 
-  // ── Total cards ──
-  document.getElementById('total-cards').innerHTML = [
-    stat_card('Total Sessions',  fmt(t.sessions||0),  '', 'blue',
-      'Total number of conversations with Claude across all time. Each session is one continuous chat.'),
-    stat_card('Total Messages',  fmt(t.messages||0), '', '',
-      'Total Claude responses across all sessions ever. Higher = more back-and-forth with Claude.'),
-    stat_card('Total Cost',      fmtCost(d.total_cost||0), 'estimated USD', 'accent',
-      'Estimated total API cost across all sessions ever, based on token usage × current rates.'),
-    stat_card('Cache Hit Rate',  (d.cache_hit_rate||0)+'%', 'of input tokens cached', 'green',
-      'How often Claude reused previously saved context instead of re-reading it fresh. Higher % = cheaper — cached tokens cost 10× less than fresh input tokens.'),
-    stat_card('Cache Savings',   fmtCost(d.cache_savings||0), 'vs no-cache baseline', 'green',
-      'How much money you saved because of caching. Calculated by comparing your actual cost vs what it would have cost if every token were priced as fresh input.'),
-    stat_card('Total Input',     fmtM(t.input||0),    'tokens', '',
-      'All text Claude has read from you — questions, code, files, conversation history — across every session.'),
-    stat_card('Total Output',    fmtM(t.output||0),   'tokens', '',
-      'All text Claude has written back to you across every session. Output is billed at a higher rate than input.'),
-    stat_card('Cache Reads',     fmtM(t.cache_read||0),'tokens at reduced rate', 'purple',
-      'Tokens served from Claude\'s memory cache instead of re-sent fresh. These cost 10× less than regular input — a high number here means good efficiency.'),
-  ].join('');
+  // ── Total cards (appended into today-cards grid with sub-label) ──
+  document.getElementById('today-cards').innerHTML +=
+    '<div class="section-sub-title" id="sec-totals">All-Time Totals</div>' +
+    [
+      stat_card('Total Sessions',  fmt(t.sessions||0),  '', 'blue',
+        'Total number of conversations with Claude across all time. Each session is one continuous chat.'),
+      stat_card('Total Messages',  fmt(t.messages||0), '', '',
+        'Total Claude responses across all sessions ever. Higher = more back-and-forth with Claude.'),
+      stat_card('Total Cost',      fmtCost(d.total_cost||0), 'estimated USD', 'accent',
+        'Estimated total API cost across all sessions ever, based on token usage × current rates.'),
+      stat_card('Cache Hit Rate',  (d.cache_hit_rate||0)+'%', 'of input tokens cached', 'green',
+        'How often Claude reused previously saved context instead of re-reading it fresh. Higher % = cheaper — cached tokens cost 10× less than fresh input tokens.'),
+      stat_card('Cache Savings',   fmtCost(d.cache_savings||0), 'vs no-cache baseline', 'green',
+        'How much money you saved because of caching. Calculated by comparing your actual cost vs what it would have cost if every token were priced as fresh input.'),
+      stat_card('Total Input',     fmtM(t.input||0),    'tokens', '',
+        'All text Claude has read from you — questions, code, files, conversation history — across every session.'),
+      stat_card('Total Output',    fmtM(t.output||0),   'tokens', '',
+        'All text Claude has written back to you across every session. Output is billed at a higher rate than input.'),
+      stat_card('Cache Reads',     fmtM(t.cache_read||0),'tokens at reduced rate', 'purple',
+        'Tokens served from Claude\'s memory cache instead of re-sent fresh. These cost 10× less than regular input — a high number here means good efficiency.'),
+    ].join('');
 
   // ── Retrospective ──
   renderRetrospective(d.retrospective);
@@ -1027,7 +1048,7 @@ const _spy = new IntersectionObserver(entries => {
       _pills.forEach(p => p.classList.toggle('active', p.getAttribute('href') === '#' + e.target.id));
     }
   });
-}, { rootMargin: '-40% 0px -55% 0px' });
+}, { rootMargin: '-30% 0px -65% 0px' });
 _sections.forEach(s => _spy.observe(s));
 
 // ── Nav fade-in on scroll + back to top near page bottom ──
