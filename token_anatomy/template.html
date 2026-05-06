@@ -427,6 +427,26 @@
   <div class="section-title" id="sec-chats">Chat Cost Browser</div>
   <div class="table-panel">
 
+    <!-- date range bar -->
+    <div id="date-range-bar" style="display:flex;align-items:center;gap:8px;padding:10px 16px;
+                border-bottom:1px solid var(--border);flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--muted)">Date range:</span>
+      <input type="date" id="date-from"
+        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+               color:var(--text);padding:5px 8px;font-size:12px;cursor:pointer;outline:none;
+               color-scheme:dark;">
+      <span style="font-size:12px;color:var(--muted)">→</span>
+      <input type="date" id="date-to"
+        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;
+               color:var(--text);padding:5px 8px;font-size:12px;cursor:pointer;outline:none;
+               color-scheme:dark;">
+      <button id="date-clear" onclick="clearDateRange()"
+        style="background:transparent;border:1px solid var(--border);border-radius:6px;
+               color:var(--muted);padding:5px 10px;font-size:12px;cursor:pointer;">
+        ✕ Clear
+      </button>
+    </div>
+
     <!-- toolbar -->
     <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;
                 border-bottom:1px solid var(--border);flex-wrap:wrap;">
@@ -444,6 +464,11 @@
         <option value="">All models</option>
       </select>
       <span id="chat-count" style="font-size:12px;color:var(--muted);white-space:nowrap;margin-left:4px;"></span>
+      <button id="export-btn" onclick="exportCSV()"
+        style="background:var(--accent);color:#000;border:none;border-radius:6px;
+               padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+        ⬇ Export CSV
+      </button>
     </div>
 
     <!-- table -->
@@ -539,6 +564,7 @@ function toUTC(s) {
   if (!s) return null;
   return (s.endsWith('Z') || s.includes('+')) ? s : s + 'Z';
 }
+function fmtCurrencyLabel() { return 'estimated ' + selectedCurrency; }
 
 function fmt(n, dec=0)    { return (n||0).toLocaleString(undefined, {minimumFractionDigits:dec,maximumFractionDigits:dec}); }
 function fmtM(n)          { return n>=1e6 ? (n/1e6).toFixed(2)+'M' : n>=1000 ? (n/1000).toFixed(1)+'K' : fmt(n); }
@@ -783,6 +809,73 @@ function generateInsights(d) {
   return insights;
 }
 
+function getFilteredDailyEntries(daily) {
+  let entries = Object.entries(daily || {});
+  if (typeof dateFrom !== 'undefined' && dateFrom) entries = entries.filter(([k]) => k >= dateFrom);
+  if (typeof dateTo   !== 'undefined' && dateTo)   entries = entries.filter(([k]) => k <= dateTo);
+  return entries;
+}
+
+function rebuildDailyCharts(d) {
+  const days30 = getFilteredDailyEntries(d.daily).slice(0, 30).reverse();
+  destroyChart('dailyCostChart');
+  charts.dailyCostChart = new Chart(document.getElementById('dailyCostChart'), {
+    type: 'bar',
+    data: {
+      labels: days30.map(([k]) => k.substring(5)),
+      datasets: [{
+        label: 'Cost',
+        data: days30.map(([,v]) => (v.cost||0).toFixed(4)),
+        backgroundColor: 'rgba(217,119,6,0.7)',
+        borderColor: '#d97706', borderWidth: 1, borderRadius: 3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2a2d3a' } },
+        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2a2d3a' }, beginAtZero: true }
+      }
+    }
+  });
+  destroyChart('dailyTokenChart');
+  charts.dailyTokenChart = new Chart(document.getElementById('dailyTokenChart'), {
+    type: 'bar',
+    data: {
+      labels: days30.map(([k]) => k.substring(5)),
+      datasets: [
+        { label: 'Input',   data: days30.map(([,v]) => v.input||0),      backgroundColor: 'rgba(59,130,246,0.7)' },
+        { label: 'Output',  data: days30.map(([,v]) => v.output||0),     backgroundColor: 'rgba(124,58,237,0.7)' },
+        { label: 'Cache R', data: days30.map(([,v]) => v.cache_read||0), backgroundColor: 'rgba(16,185,129,0.5)' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2a2d3a' } },
+        y: { stacked: true, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#2a2d3a' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function rebuildDailyTable(d) {
+  const dailyBody = document.querySelector('#daily-table tbody');
+  dailyBody.innerHTML = getFilteredDailyEntries(d.daily).slice(0, 60).map(([day, ds]) =>
+    `<tr>
+      <td>${day}</td>
+      <td class="num">${ds.sessions||0}</td>
+      <td class="num">${fmt(ds.messages||0)}</td>
+      <td class="num">${fmtM(ds.input||0)}</td>
+      <td class="num">${fmtM(ds.output||0)}</td>
+      <td class="num">${fmtM(ds.cache_read||0)}</td>
+      <td class="num">${fmtM(ds.cache_write||0)}</td>
+      <td class="num">${pill(fmtCost(ds.cost||0),'orange')}</td>
+    </tr>`).join('') || '<tr><td colspan="8" style="color:var(--muted);text-align:center">No data</td></tr>';
+}
+
 function render(d) {
   const t = d.total || {};
   // derive today's key in the user's selected timezone
@@ -799,7 +892,7 @@ function render(d) {
       'Tokens are chunks of text (roughly 1 token ≈ 4 characters). "Input tokens" is everything Claude read today — your messages, files, and conversation history.'),
     stat_card('Tokens Out',      fmtM(td.output||0),  'output tokens today', '',
       'Everything Claude wrote back to you today. Output tokens cost 5× more than input tokens, so verbose responses are pricier.'),
-    stat_card("Today's Cost",    fmtCost(td.cost||0), 'estimated USD', 'accent',
+    stat_card("Today's Cost",    fmtCost(td.cost||0), fmtCurrencyLabel(), 'accent',
       'Estimated API cost for today based on token usage and current rates. This is what you would pay if using the Anthropic API directly.'),
   ].join('');
 
@@ -811,7 +904,7 @@ function render(d) {
         'Total number of conversations with Claude across all time. Each session is one continuous chat.'),
       stat_card('Total Messages',  fmt(t.messages||0), '', '',
         'Total Claude responses across all sessions ever. Higher = more back-and-forth with Claude.'),
-      stat_card('Total Cost',      fmtCost(d.total_cost||0), 'estimated USD', 'accent',
+      stat_card('Total Cost',      fmtCost(d.total_cost||0), fmtCurrencyLabel(), 'accent',
         'Estimated total API cost across all sessions ever, based on token usage × current rates.'),
       stat_card('Cache Hit Rate',  (d.cache_hit_rate||0)+'%', 'of input tokens cached', 'green',
         'How often Claude reused previously saved context instead of re-reading it fresh. Higher % = cheaper — cached tokens cost 10× less than fresh input tokens.'),
@@ -843,56 +936,8 @@ function render(d) {
         </div>`).join('')}</div>`
     : '<div style="color:var(--muted);font-size:13px;padding:12px 0">No data yet.</div>';
 
-  // ── Daily Cost Chart ──
-  const days30 = Object.entries(d.daily||{}).slice(0,30).reverse();
-  destroyChart('dailyCostChart');
-  charts.dailyCostChart = new Chart(document.getElementById('dailyCostChart'), {
-    type: 'bar',
-    data: {
-      labels: days30.map(([k])=>k.substring(5)),
-      datasets: [{
-        label: 'Cost USD',
-        data: days30.map(([,v])=>(v.cost||0).toFixed(4)),
-        backgroundColor: 'rgba(217,119,6,0.7)',
-        borderColor: '#d97706', borderWidth: 1, borderRadius: 3
-      }]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:true,
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'}},
-        y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'},
-           beginAtZero:true}
-      }
-    }
-  });
-
-  // ── Daily Token Chart ──
-  destroyChart('dailyTokenChart');
-  charts.dailyTokenChart = new Chart(document.getElementById('dailyTokenChart'), {
-    type: 'bar',
-    data: {
-      labels: days30.map(([k])=>k.substring(5)),
-      datasets: [
-        {label:'Input',  data:days30.map(([,v])=>v.input||0),
-         backgroundColor:'rgba(59,130,246,0.7)'},
-        {label:'Output', data:days30.map(([,v])=>v.output||0),
-         backgroundColor:'rgba(124,58,237,0.7)'},
-        {label:'Cache R',data:days30.map(([,v])=>v.cache_read||0),
-         backgroundColor:'rgba(16,185,129,0.5)'},
-      ]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:true,
-      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
-      scales:{
-        x:{stacked:true,ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'}},
-        y:{stacked:true,ticks:{color:'#94a3b8',font:{size:10}},grid:{color:'#2a2d3a'},
-           beginAtZero:true}
-      }
-    }
-  });
+  // ── Daily charts ──
+  rebuildDailyCharts(d);
 
   // ── Hourly heatmap — rebucket sessions into selected timezone ──
   const tzHourly = new Array(24).fill(0);
@@ -1007,142 +1052,176 @@ function render(d) {
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="color:var(--muted);text-align:center">No data</td></tr>';
 
-  // ── Daily table ──
-  const dailyBody = document.querySelector('#daily-table tbody');
-  dailyBody.innerHTML = Object.entries(d.daily||{}).slice(0,60).map(([day, ds]) =>
-    `<tr>
-      <td>${day}</td>
-      <td class="num">${ds.sessions||0}</td>
-      <td class="num">${fmt(ds.messages||0)}</td>
-      <td class="num">${fmtM(ds.input||0)}</td>
-      <td class="num">${fmtM(ds.output||0)}</td>
-      <td class="num">${fmtM(ds.cache_read||0)}</td>
-      <td class="num">${fmtM(ds.cache_write||0)}</td>
-      <td class="num">${pill(fmtCost(ds.cost||0),'orange')}</td>
-    </tr>`).join('') || '<tr><td colspan="8" style="color:var(--muted);text-align:center">No data</td></tr>';
-
-  // ── Chat Browser state ──
-  let allChats = [], filteredChats = [];
-  let chatPage_ = 1;
-  const PAGE_SIZE = 25;
-  let sortCol = 'cost', sortDir = -1;   // default: cost desc
-
-  function initChatBrowser(sessions) {
-    allChats = sessions || [];
-
-    // Populate project filter
-    const projSel = document.getElementById('chat-proj-filter');
-    const projects = [...new Set(allChats.map(s => s.project))].sort();
-    projects.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p; opt.textContent = p;
-      projSel.appendChild(opt);
-    });
-
-    // Populate model filter
-    const modSel = document.getElementById('chat-model-filter');
-    const mods = [...new Set(allChats.map(s => shortModel(s.model)).filter(Boolean))].sort();
-    mods.forEach(m => {
-      const opt = document.createElement('option');
-      opt.value = m; opt.textContent = m;
-      modSel.appendChild(opt);
-    });
-
-    // Wire events
-    document.getElementById('chat-search').addEventListener('input', () => { chatPage_ = 1; renderChatTable(); });
-    projSel.addEventListener('change',  () => { chatPage_ = 1; renderChatTable(); });
-    modSel.addEventListener('change',   () => { chatPage_ = 1; renderChatTable(); });
-
-    // Sortable headers
-    document.querySelectorAll('#chat-table th.sortable').forEach(th => {
-      th.addEventListener('click', () => {
-        const col = th.dataset.col;
-        if (sortCol === col) { sortDir *= -1; }
-        else { sortCol = col; sortDir = -1; }
-        chatPage_ = 1;
-        renderChatTable();
-      });
-    });
-
-    renderChatTable();
-  }
-
-  function renderChatTable() {
-    const q     = (document.getElementById('chat-search').value || '').toLowerCase();
-    const proj  = document.getElementById('chat-proj-filter').value;
-    const model = document.getElementById('chat-model-filter').value;
-
-    filteredChats = allChats.filter(s => {
-      if (proj  && s.project !== proj)                return false;
-      if (model && shortModel(s.model) !== model)     return false;
-      if (q && !s.project.toLowerCase().includes(q)
-            && !(s.id||'').toLowerCase().includes(q)) return false;
-      return true;
-    });
-
-    // Sort
-    filteredChats.sort((a, b) => {
-      let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
-      if (typeof av === 'string') av = av.toLowerCase();
-      if (typeof bv === 'string') bv = bv.toLowerCase();
-      return av < bv ? -sortDir : av > bv ? sortDir : 0;
-    });
-
-    // Update sort arrows on headers
-    document.querySelectorAll('#chat-table th.sortable').forEach(th => {
-      const col = th.dataset.col;
-      const base = th.textContent.replace(/ [↑↓↕]$/, '');
-      th.textContent = base + (col === sortCol ? (sortDir === -1 ? ' ↓' : ' ↑') : ' ↕');
-    });
-
-    const total   = filteredChats.length;
-    const pages   = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    chatPage_     = Math.min(chatPage_, pages);
-    const start   = (chatPage_ - 1) * PAGE_SIZE;
-    const slice   = filteredChats.slice(start, start + PAGE_SIZE);
-
-    document.getElementById('chat-count').textContent = `${total} chat${total !== 1 ? 's' : ''}`;
-    document.getElementById('chat-page-info').textContent =
-      `Page ${chatPage_} of ${pages}`;
-    document.getElementById('chat-prev').disabled = chatPage_ <= 1;
-    document.getElementById('chat-next').disabled = chatPage_ >= pages;
-
-    const tbody = document.getElementById('chat-tbody');
-    if (!slice.length) {
-      tbody.innerHTML = '<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:20px">No chats match your filters.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = slice.map(s => {
-      const modelCls = (s.model||'').includes('opus')  ? 'red'
-                     : (s.model||'').includes('haiku') ? 'green' : 'purple';
-      const cacheRate = (s.input + s.cache_read) > 0
-        ? ((s.cache_read / (s.input + s.cache_read)) * 100).toFixed(0) + '%' : '—';
-      return `<tr>
-        <td style="font-size:12px;color:var(--muted);white-space:nowrap">${fmtDate(s.first_ts)}</td>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-            title="${s.project}">${s.project}</td>
-        <td>${pill(shortModel(s.model), modelCls)}</td>
-        <td class="num">${s.messages}</td>
-        <td class="num">${fmtM(s.input||0)}</td>
-        <td class="num">${fmtM(s.output||0)}</td>
-        <td class="num" style="color:var(--green);font-size:12px">${fmtM(s.cache_read||0)}<span style="color:var(--muted);margin-left:3px">(${cacheRate})</span></td>
-        <td class="num">${pill(fmtCost(s.cost||0),'orange')}</td>
-        <td style="font-family:monospace;font-size:10px;color:var(--muted);text-align:right;padding-right:14px">${s.id}…</td>
-      </tr>`;
-    }).join('');
-  }
-
-  function chatPage(delta) {
-    chatPage_ += delta;
-    renderChatTable();
-  }
+  // ── Daily table (also rebuilt by rebuildDailyCharts) ──
+  rebuildDailyTable(d);
 
   document.getElementById('footer').textContent =
     `Token Anatomy — ${d.claude_dir} • Auto-refreshes every 60 s`;
 
   // Init chat browser once per load (re-init on refresh clears filters)
   initChatBrowser(d.sessions || []);
+}
+
+// ── Chat Browser — global state & functions ──
+let allChats = [], filteredChats = [];
+let chatPage_ = 1;
+const PAGE_SIZE = 25;
+let sortCol = 'cost', sortDir = -1;
+let dateFrom = '', dateTo = '';
+
+function exportCSV() {
+  if (!filteredChats.length) return;
+  const currency = selectedCurrency;
+  const rate = fxRates[currency] || 1;
+  const headers = ['Started','Project','Model','Messages','Input Tokens',
+                   'Output Tokens','Cache Read Tokens',
+                   `Cost (${currency})`,'Cache Rate %','Session ID'];
+  const rows = filteredChats.map(s => {
+    const cacheRate = (s.input + s.cache_read) > 0
+      ? ((s.cache_read / (s.input + s.cache_read)) * 100).toFixed(1) : '0';
+    const cost = ((s.cost || 0) * rate).toFixed(ZERO_DECIMAL.has(currency) ? 0 : 4);
+    return [
+      fmtDate(s.first_ts),
+      `"${(s.project||'').replace(/"/g,'""')}"`,
+      shortModel(s.model),
+      s.messages, s.input||0, s.output||0, s.cache_read||0,
+      cost, cacheRate, s.id||''
+    ].join(',');
+  });
+  const csv  = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `token-anatomy-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearDateRange() {
+  dateFrom = dateTo = '';
+  document.getElementById('date-from').value = '';
+  document.getElementById('date-to').value   = '';
+  if (lastData) { renderChatTable(); rebuildDailyCharts(lastData); rebuildDailyTable(lastData); }
+}
+
+function renderChatTable() {
+  const q     = (document.getElementById('chat-search').value || '').toLowerCase();
+  const proj  = document.getElementById('chat-proj-filter').value;
+  const model = document.getElementById('chat-model-filter').value;
+
+  filteredChats = allChats.filter(s => {
+    if (proj  && s.project !== proj)                return false;
+    if (model && shortModel(s.model) !== model)     return false;
+    if (q && !s.project.toLowerCase().includes(q)
+          && !(s.id||'').toLowerCase().includes(q)) return false;
+    if (dateFrom && s.first_ts && s.first_ts.slice(0,10) < dateFrom) return false;
+    if (dateTo   && s.first_ts && s.first_ts.slice(0,10) > dateTo)   return false;
+    return true;
+  });
+
+  filteredChats.sort((a, b) => {
+    let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    return av < bv ? -sortDir : av > bv ? sortDir : 0;
+  });
+
+  document.querySelectorAll('#chat-table th.sortable').forEach(th => {
+    const col = th.dataset.col;
+    const base = th.textContent.replace(/ [↑↓↕]$/, '');
+    th.textContent = base + (col === sortCol ? (sortDir === -1 ? ' ↓' : ' ↑') : ' ↕');
+  });
+
+  const total = filteredChats.length;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  chatPage_   = Math.min(chatPage_, pages);
+  const start = (chatPage_ - 1) * PAGE_SIZE;
+  const slice = filteredChats.slice(start, start + PAGE_SIZE);
+
+  document.getElementById('chat-count').textContent = `${total} chat${total !== 1 ? 's' : ''}`;
+  document.getElementById('chat-page-info').textContent = `Page ${chatPage_} of ${pages}`;
+  document.getElementById('chat-prev').disabled = chatPage_ <= 1;
+  document.getElementById('chat-next').disabled = chatPage_ >= pages;
+  document.getElementById('export-btn').disabled = total === 0;
+
+  const tbody = document.getElementById('chat-tbody');
+  if (!slice.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:20px">No chats match your filters.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = slice.map(s => {
+    const modelCls = (s.model||'').includes('opus')  ? 'red'
+                   : (s.model||'').includes('haiku') ? 'green' : 'purple';
+    const cacheRate = (s.input + s.cache_read) > 0
+      ? ((s.cache_read / (s.input + s.cache_read)) * 100).toFixed(0) + '%' : '—';
+    return `<tr>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap">${fmtDate(s.first_ts)}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          title="${s.project}">${s.project}</td>
+      <td>${pill(shortModel(s.model), modelCls)}</td>
+      <td class="num">${s.messages}</td>
+      <td class="num">${fmtM(s.input||0)}</td>
+      <td class="num">${fmtM(s.output||0)}</td>
+      <td class="num" style="color:var(--green);font-size:12px">${fmtM(s.cache_read||0)}<span style="color:var(--muted);margin-left:3px">(${cacheRate})</span></td>
+      <td class="num">${pill(fmtCost(s.cost||0),'orange')}</td>
+      <td style="font-family:monospace;font-size:10px;color:var(--muted);text-align:right;padding-right:14px">${s.id}…</td>
+    </tr>`;
+  }).join('');
+}
+
+function chatPage(delta) {
+  chatPage_ += delta;
+  renderChatTable();
+}
+
+function initChatBrowser(sessions) {
+  allChats = sessions || [];
+
+  const projSel = document.getElementById('chat-proj-filter');
+  projSel.innerHTML = '<option value="">All projects</option>';
+  const projects = [...new Set(allChats.map(s => s.project))].sort();
+  projects.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    projSel.appendChild(opt);
+  });
+
+  const modSel = document.getElementById('chat-model-filter');
+  modSel.innerHTML = '<option value="">All models</option>';
+  const mods = [...new Set(allChats.map(s => shortModel(s.model)).filter(Boolean))].sort();
+  mods.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    modSel.appendChild(opt);
+  });
+
+  // Wire events once (guard against double-binding on refresh)
+  if (!projSel.dataset.wired) {
+    document.getElementById('chat-search').addEventListener('input', () => { chatPage_ = 1; renderChatTable(); });
+    projSel.addEventListener('change',  () => { chatPage_ = 1; renderChatTable(); });
+    modSel.addEventListener('change',   () => { chatPage_ = 1; renderChatTable(); });
+    document.getElementById('date-from').addEventListener('change', e => {
+      dateFrom = e.target.value; chatPage_ = 1; renderChatTable();
+      if (lastData) { rebuildDailyCharts(lastData); rebuildDailyTable(lastData); }
+    });
+    document.getElementById('date-to').addEventListener('change', e => {
+      dateTo = e.target.value; chatPage_ = 1; renderChatTable();
+      if (lastData) { rebuildDailyCharts(lastData); rebuildDailyTable(lastData); }
+    });
+    document.querySelectorAll('#chat-table th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.col;
+        if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = -1; }
+        chatPage_ = 1;
+        renderChatTable();
+      });
+    });
+    projSel.dataset.wired = '1';
+  }
+
+  renderChatTable();
 }
 
 // ── Timezone & currency selector init ──
