@@ -1,6 +1,6 @@
 # Token Anatomy — Project Context & Development Tracker
 
-> Last updated: 2026-05-02
+> Last updated: 2026-05-06 (Session 9)
 > Author: Md Muntasir Hossain (Munta)
 > Status: Active development — v0.1 shipped to GitHub, roadmap ongoing
 
@@ -229,16 +229,31 @@ Two-panel grid positioned after All-Time Totals, before charts.
 Data flow: `parser.py::parse_data()` → `sess["full_text"]` → `compute_retrospective(sessions, hourly)` → `d.retrospective` in `/api/stats` → `renderRetrospective()` in JS
 
 ### Dashboard layout order
-1. Today's Snapshot
-2. All-Time Totals
-3. Cost & Activity Trends (charts row 1)
-4. Usage Patterns (charts row 2)
-5. **Retrospective** (Topic Clusters + Working Styles)
-6. Tool Call Frequency
-7. Insights & Advisor
-8. Per-Project Breakdown table
-9. Daily Breakdown table
-10. Chat Cost Browser
+1. **Usage Overview** — unified cards grid: Today's Snapshot (5 cards) + "All-Time Totals" sub-label + 8 total cards, all in one auto-fill grid
+2. Cost & Activity Trends (charts row 1)
+3. Usage Patterns (charts row 2)
+4. **Retrospective** — full width (`.retro-grid` internal 2-col)
+5. **Insights & Advisor + [Per-Project Breakdown / Tool Call Frequency]** — side-by-side 1fr/1fr (`.side-row-insights-projects`): Insights left; right column has Projects table then Tools bar chart stacked below it; collapses at ≤900px
+7. Daily Breakdown table
+8. Chat Cost Browser
+
+**Nav pills:** Overview · Totals · Trends · Patterns · Retro · Tools · Insights · Projects · Daily · Chats  
+- "Totals" links to `id="sec-totals"` on the `.section-sub-title` div injected by JS inside `#today-cards`
+
+### Timezone & Currency Selectors
+Both selectors live in the header (right side, before status/refresh). State persists via localStorage.
+
+| Key | Default | Description |
+|---|---|---|
+| `ta_timezone` | `UTC` | IANA timezone string (e.g. `Asia/Dhaka`) |
+| `ta_currency` | `USD` | 3-letter currency code |
+| `ta_fx_rates` | — | Cached JSON of FX rates from open.er-api.com |
+| `ta_fx_timestamp` | — | Unix ms timestamp of last FX fetch |
+
+FX rates cached 1h. On API failure: silent fallback to `FX_FALLBACK` table in `template.html`.  
+`toUTC(s)` normalizer appends `Z` to naive ISO timestamps before any `new Date()` call.  
+`ZERO_DECIMAL` set: JPY, PKR, IDR, KRW, VND show 0 decimal places.  
+Hourly heatmap rebuilt from `d.sessions` on each render using selected timezone (not server-side `d.hourly`).
 
 ### Charts (Chart.js 4.4.0 CDN)
 | Chart | Type | Description |
@@ -313,6 +328,42 @@ Full interactive browser over all sessions — no cap.
 - **Test suite added** (`tests/test_pricing.py`, `tests/__init__.py`)
   - 17 tests covering `get_rates()` and `compute_cost()` — all passing
   - Run: `python -m pytest tests/ -v`
+
+### Session 8 — 2026-05-03
+- **Responsive layout + wide-screen fixes** (`template.html` only)
+  - `main` max-width bumped 1400px → 1600px; padding now `clamp(20px, 4vw, 60px)` (scales with viewport)
+  - Header converted to full-bleed `<header>` + inner `.header-inner` div (`max-width: 1600px; margin: 0 auto`) so logo/nav/status align with main content on wide screens
+  - Insights & Advisor + Per-Project Breakdown wrapped in `.side-row-insights-projects` (1fr/1fr, collapses at ≤900px)
+  - Added `.side-row-insights-projects` CSS rule; `.side-row-retro-tools` media query shares same block
+  - Scroll-spy `rootMargin` changed from `-40% 0px -55%` → `-30% 0px -65%` so active nav pill fires when section reaches viewport center, not just top
+
+### Session 7 — 2026-05-02
+- **Dashboard layout: reduced scrolling** (`template.html` only)
+  - Merged Today's Snapshot + All-Time Totals into single unified `.cards` grid ("Usage Overview")
+    - `#total-cards` element removed; totals injected via JS `+=` into `#today-cards` after a `.section-sub-title` separator div (`id="sec-totals"` preserved on it for nav)
+  - Retrospective + Tool Call Frequency placed side-by-side: 2fr/1fr via `.side-row-retro-tools` grid wrapper
+    - Collapses to single column at ≤900px
+  - Added CSS: `.side-row`, `.side-row-retro-tools`, `.section-sub-title` (with `grid-column: 1/-1` to span all auto-fill columns)
+  - Nav "Snapshot" pill renamed to "Overview"
+  - Scroll distance reduced ~30%
+
+### Session 9 — 2026-05-06
+- **Timezone selector** added to dashboard header
+  - `<select id="tz-select">` populated from 35-zone IANA list at runtime; persists to `localStorage` key `ta_timezone`
+  - `fmtDate()` rewritten: uses `Intl.DateTimeFormat` via `toLocaleString('en-GB', {timeZone})` instead of string slicing
+  - `toUTC(s)` normalizer added: appends `Z` to timestamps that lack timezone info (guards against older JSONL entries)
+  - "Today" stats card now derives `todayKey` from `d.daily` using selected timezone (`en-CA` locale gives `YYYY-MM-DD`)
+  - Hourly heatmap rebucketed from `d.sessions` using selected timezone (was using server-side `d.hourly` array)
+  - `generated_at` display converted to selected timezone
+  - On change: saves to localStorage, re-renders without refetch
+- **Currency selector** added to dashboard header
+  - `<select id="currency-select">` with 12 currencies; persists to `localStorage` key `ta_currency`
+  - `fmtCost()` rewritten: multiplies by live FX rate, uses correct symbol, applies `ZERO_DECIMAL` set (JPY/PKR → 0 decimals)
+  - `getCachedFX()`: fetches `open.er-api.com/v6/latest/USD` on load; caches in localStorage for 1h; silently falls back to `FX_FALLBACK` on failure
+  - `FX_FALLBACK` hardcoded rates: USD/EUR/GBP/JPY/CAD/AUD/INR/BDT/SGD/CHF/MYR/PKR (BDT=122.0 current as of 2026-05)
+  - On change: saves to localStorage, re-renders without refetch
+- **`loadData()` refactored** to `async/await` with `Promise.all([fetch('/api/stats'), getCachedFX()])` — parallel fetches; `lastData` caches last response for re-render on selector change
+- **`parser.py`** line 258: `datetime.now(timezone.utc)` replaces `datetime.now()` — avoids `DeprecationWarning` on Python 3.12+, emits unambiguous UTC timestamp with `+00:00` suffix
 
 ### Session 5 — 2026-05-02
 - **Dashboard navigation** added to `template.html` (no other files changed)

@@ -83,6 +83,19 @@
     font-size: 12px; font-weight: 600; margin-left: 12px;
   }
   #refresh-btn:hover { opacity: .85; }
+  #tz-select, #currency-select {
+    background: #1e2130; color: #e2e8f0;
+    border: 1px solid #2a2d3a; border-radius: 6px;
+    padding: 5px 8px; font-size: 12px; cursor: pointer;
+    outline: none;
+  }
+  #tz-select:focus, #currency-select:focus,
+  #tz-select:hover, #currency-select:hover {
+    border-color: var(--accent);
+  }
+  #tz-select option, #currency-select option {
+    background: #1e2130; color: #e2e8f0;
+  }
 
   main { padding: 24px clamp(20px, 4vw, 60px); max-width: 1600px; margin: 0 auto; }
 
@@ -289,7 +302,22 @@
       <a href="#sec-daily"    class="nav-pill">Daily</a>
       <a href="#sec-chats"    class="nav-pill">Chats</a>
     </nav>
-    <div style="display:flex;align-items:center;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <select id="tz-select" title="Timezone"></select>
+      <select id="currency-select" title="Currency">
+        <option value="USD">$ USD</option>
+        <option value="EUR">€ EUR</option>
+        <option value="GBP">£ GBP</option>
+        <option value="JPY">¥ JPY</option>
+        <option value="CAD">CA$ CAD</option>
+        <option value="AUD">A$ AUD</option>
+        <option value="INR">₹ INR</option>
+        <option value="BDT">৳ BDT</option>
+        <option value="SGD">S$ SGD</option>
+        <option value="CHF">Fr CHF</option>
+        <option value="MYR">RM MYR</option>
+        <option value="PKR">₨ PKR</option>
+      </select>
       <span id="status">Loading…</span>
       <button id="refresh-btn" onclick="loadData()">↺ Refresh</button>
     </div>
@@ -459,11 +487,76 @@
 
 <script>
 let charts = {};
+let lastData = null;
+let selectedTimezone = localStorage.getItem('ta_timezone') || 'UTC';
+let selectedCurrency = localStorage.getItem('ta_currency') || 'USD';
+
+const FX_FALLBACK = {
+  USD:1, EUR:0.92, GBP:0.77, JPY:154.0, CAD:1.38,
+  AUD:1.55, INR:83.5, BDT:122.0, SGD:1.35,
+  CHF:0.91, MYR:4.72, PKR:280.0
+};
+const CURRENCY_SYMBOLS = {
+  USD:'$', EUR:'€', GBP:'£', JPY:'¥', CAD:'CA$',
+  AUD:'A$', INR:'₹', BDT:'৳', SGD:'S$',
+  CHF:'Fr', MYR:'RM', PKR:'₨'
+};
+const ZERO_DECIMAL = new Set(['JPY','PKR','IDR','KRW','VND']);
+const TIMEZONES = [
+  'America/New_York','America/Chicago','America/Denver','America/Los_Angeles',
+  'America/Toronto','America/Vancouver','America/Sao_Paulo','America/Mexico_City',
+  'Europe/London','Europe/Paris','Europe/Berlin','Europe/Madrid',
+  'Europe/Rome','Europe/Amsterdam','Europe/Stockholm','Europe/Moscow',
+  'Asia/Dubai','Asia/Kolkata','Asia/Dhaka','Asia/Bangkok',
+  'Asia/Singapore','Asia/Shanghai','Asia/Tokyo','Asia/Seoul',
+  'Asia/Karachi','Asia/Colombo','Asia/Kuala_Lumpur','Asia/Jakarta',
+  'Africa/Cairo','Africa/Lagos','Africa/Nairobi',
+  'Australia/Sydney','Australia/Melbourne','Pacific/Auckland',
+  'UTC'
+];
+
+let fxRates = { ...FX_FALLBACK };
+
+async function getCachedFX() {
+  const cached = localStorage.getItem('ta_fx_rates');
+  const ts = localStorage.getItem('ta_fx_timestamp');
+  if (cached && ts && Date.now() - +ts < 3_600_000) {
+    fxRates = JSON.parse(cached);
+    return;
+  }
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    const data = await res.json();
+    fxRates = data.rates;
+    localStorage.setItem('ta_fx_rates', JSON.stringify(fxRates));
+    localStorage.setItem('ta_fx_timestamp', Date.now().toString());
+  } catch {
+    fxRates = { ...FX_FALLBACK };
+  }
+}
+
+function toUTC(s) {
+  if (!s) return null;
+  return (s.endsWith('Z') || s.includes('+')) ? s : s + 'Z';
+}
 
 function fmt(n, dec=0)    { return (n||0).toLocaleString(undefined, {minimumFractionDigits:dec,maximumFractionDigits:dec}); }
 function fmtM(n)          { return n>=1e6 ? (n/1e6).toFixed(2)+'M' : n>=1000 ? (n/1000).toFixed(1)+'K' : fmt(n); }
-function fmtCost(n)       { return '$'+(n||0).toFixed(4); }
-function fmtDate(s)       { return s ? s.replace('T',' ').substring(0,16) : '—'; }
+function fmtCost(n) {
+  const rate = fxRates[selectedCurrency] || 1;
+  const sym  = CURRENCY_SYMBOLS[selectedCurrency] || selectedCurrency + ' ';
+  const converted = (n || 0) * rate;
+  const decimals  = ZERO_DECIMAL.has(selectedCurrency) ? 0 : converted < 1 ? 4 : 2;
+  return sym + converted.toFixed(decimals);
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  return new Date(toUTC(s)).toLocaleString('en-GB', {
+    timeZone: selectedTimezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
 function shortModel(s)    { return (s||'unknown').replace('claude-','').split('-20')[0]; }
 
 function pill(text, cls) {
@@ -482,21 +575,28 @@ function destroyChart(id) {
   if (charts[id]) { charts[id].destroy(); delete charts[id]; }
 }
 
-function loadData() {
+async function loadData() {
   document.getElementById('status').textContent = 'Loading…';
-  fetch('/api/stats')
-    .then(r => r.json())
-    .then(d => {
-      if (d.error) {
-        document.getElementById('error-box').style.display = 'block';
-        document.getElementById('error-box').textContent = '⚠ ' + d.error;
-        return;
-      }
-      render(d);
-      document.getElementById('status').textContent =
-        'Updated ' + d.generated_at.substring(11,19);
-    })
-    .catch(e => { document.getElementById('status').textContent = 'Error: '+e; });
+  try {
+    const [statsRes] = await Promise.all([
+      fetch('/api/stats'),
+      getCachedFX()
+    ]);
+    const d = await statsRes.json();
+    if (d.error) {
+      document.getElementById('error-box').style.display = 'block';
+      document.getElementById('error-box').textContent = '⚠ ' + d.error;
+      return;
+    }
+    lastData = d;
+    render(d);
+    document.getElementById('status').textContent =
+      'Updated ' + new Date(toUTC(d.generated_at)).toLocaleTimeString('en-GB', {
+        timeZone: selectedTimezone, hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+  } catch(e) {
+    document.getElementById('status').textContent = 'Error: ' + e;
+  }
 }
 
 function renderRetrospective(retro) {
@@ -685,7 +785,9 @@ function generateInsights(d) {
 
 function render(d) {
   const t = d.total || {};
-  const td = d.today || {};
+  // derive today's key in the user's selected timezone
+  const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: selectedTimezone });
+  const td = d.daily && d.daily[todayKey] ? d.daily[todayKey] : (d.today || {});
 
   // ── Today cards ──
   document.getElementById('today-cards').innerHTML = [
@@ -792,7 +894,15 @@ function render(d) {
     }
   });
 
-  // ── Hourly heatmap ──
+  // ── Hourly heatmap — rebucket sessions into selected timezone ──
+  const tzHourly = new Array(24).fill(0);
+  (d.sessions || []).forEach(s => {
+    if (!s.first_ts) return;
+    const h = parseInt(new Date(toUTC(s.first_ts)).toLocaleString('en-GB', {
+      timeZone: selectedTimezone, hour: 'numeric', hour12: false
+    }), 10);
+    if (h >= 0 && h < 24) tzHourly[h]++;
+  });
   destroyChart('hourlyChart');
   charts.hourlyChart = new Chart(document.getElementById('hourlyChart'), {
     type: 'bar',
@@ -800,9 +910,9 @@ function render(d) {
       labels: Array.from({length:24},(_,i)=> i===0?'12am': i<12?i+'am': i===12?'12pm':(i-12)+'pm'),
       datasets: [{
         label: 'Sessions',
-        data: d.hourly||[],
-        backgroundColor: (d.hourly||[]).map(v => {
-          const max = Math.max(...(d.hourly||[1]));
+        data: tzHourly,
+        backgroundColor: tzHourly.map(v => {
+          const max = Math.max(...tzHourly, 1);
           const alpha = max>0 ? 0.2 + (v/max)*0.75 : 0.2;
           return `rgba(124,58,237,${alpha.toFixed(2)})`;
         }),
@@ -1034,6 +1144,36 @@ function render(d) {
   // Init chat browser once per load (re-init on refresh clears filters)
   initChatBrowser(d.sessions || []);
 }
+
+// ── Timezone & currency selector init ──
+(function initSelectors() {
+  const tzSel = document.getElementById('tz-select');
+  TIMEZONES.forEach(tz => {
+    const opt = document.createElement('option');
+    opt.value = tz;
+    opt.textContent = tz.replace('_', ' ');
+    if (tz === selectedTimezone) opt.selected = true;
+    tzSel.appendChild(opt);
+  });
+
+  document.getElementById('currency-select').value = selectedCurrency;
+
+  tzSel.addEventListener('change', () => {
+    selectedTimezone = tzSel.value;
+    localStorage.setItem('ta_timezone', selectedTimezone);
+    if (lastData) render(lastData);
+    if (lastData) document.getElementById('status').textContent =
+      'Updated ' + new Date(toUTC(lastData.generated_at)).toLocaleTimeString('en-GB', {
+        timeZone: selectedTimezone, hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+  });
+
+  document.getElementById('currency-select').addEventListener('change', e => {
+    selectedCurrency = e.target.value;
+    localStorage.setItem('ta_currency', selectedCurrency);
+    if (lastData) render(lastData);
+  });
+})();
 
 // Initial load + auto-refresh
 loadData();

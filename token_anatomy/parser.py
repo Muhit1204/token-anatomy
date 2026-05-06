@@ -1,7 +1,7 @@
 import json
 import sys
 from pathlib import Path
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from collections import defaultdict
 
 from token_anatomy.config import CLAUDE_DIR, RATES, get_rates
@@ -255,6 +255,6 @@ def parse_data():
         "total_cost":     round(total["cost"], 4),
         "rates":          RATES,
         "claude_dir":     str(CLAUDE_DIR),
-        "generated_at":   datetime.now().isoformat(timespec="seconds"),
+        "generated_at":   datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "retrospective":  retro,
     }
